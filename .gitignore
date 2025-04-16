@@ -1,0 +1,12 @@
+# .NET build output
+bin/
+obj/
+
+# Playwright browser/cache
+.playwright/
+
+# VS Code config
+.vscode/
+
+# User secrets
+secrets.json
