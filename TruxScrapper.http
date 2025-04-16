@@ -1,0 +1,6 @@
+@TruxScrapper_HostAddress = http://localhost:5291
+
+GET {{TruxScrapper_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

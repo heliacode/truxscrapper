@@ -1,0 +1,12 @@
+{
+  "Version": 1,
+  "Hash": "gKrOrb6TWt1wEUc453a8VjmGCwBPYvYgJMZ8+qNknYw=",
+  "Source": "TruxScrapper",
+  "BasePath": "_content/TruxScrapper",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": [],
+  "Endpoints": []
+}
