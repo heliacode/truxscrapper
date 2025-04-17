@@ -10,8 +10,9 @@ RUN dotnet restore
 COPY . ./
 RUN dotnet publish -c Release -o out
 
-# Install Playwright browsers in build stage
-RUN dotnet tool restore && dotnet playwright install
+# 🟢 Install Playwright CLI & browsers
+RUN dotnet tool install --global Microsoft.Playwright.CLI && \
+    playwright install
 
 # Runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
@@ -43,10 +44,8 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy app binaries
+# Copy app binaries and browser cache
 COPY --from=build /app/out ./
-
-# 🟢 Copy Playwright browser cache from build stage
 COPY --from=build /root/.cache/ms-playwright /root/.cache/ms-playwright
 
 # Runtime config
