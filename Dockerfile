@@ -10,6 +10,9 @@ RUN dotnet restore
 COPY . ./
 RUN dotnet publish -c Release -o out
 
+# Install Playwright browsers in build stage
+RUN dotnet tool restore && dotnet playwright install
+
 # Runtime image
 FROM mcr.microsoft.com/dotnet/aspnet:8.0
 WORKDIR /app
@@ -40,10 +43,13 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
+# Copy app binaries
 COPY --from=build /app/out ./
-RUN dotnet playwright install
 
-# Optional: expose if you want logs
+# 🟢 Copy Playwright browser cache from build stage
+COPY --from=build /root/.cache/ms-playwright /root/.cache/ms-playwright
+
+# Runtime config
 ENV ASPNETCORE_URLS=http://+:80
 EXPOSE 80
 
