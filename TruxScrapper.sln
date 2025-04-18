@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TruxScrapper", "TruxScrapper\TruxScrapper.csproj", "{8769BC40-C802-4EB4-A4A7-6AD9A30571D2}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WebDemo", "WebDemo\WebDemo.csproj", "{8769BC40-C802-4EB4-A4A7-6AD9A30571D2}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TruxScrapper", "TruxScrapper\TruxScrapper.csproj", "{B7EBB39A-EB9C-4D4D-AC39-32CCFF8E7B22}"
 EndProject
