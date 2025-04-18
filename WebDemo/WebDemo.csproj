@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="IOrderTrackerEventDispatcher.cs" />
+    <Compile Remove="OrderTrackerBackgroundService.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
+    <PackageReference Include="Microsoft.Playwright" Version="1.51.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\TruxScrapper\TruxScrapper.csproj" />
+  </ItemGroup>
+
+</Project>
