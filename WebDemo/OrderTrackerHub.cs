@@ -35,9 +35,17 @@ public class OrderTrackerHub(OrderTrackerService trackerService) : Hub
         var connectionId = Context.ConnectionId;
         try
         {
-            if (cancelByClients.TryRemove(connectionId, out var cts))
+            try
             {
-                cts.Cancel();
+                if (cancelByClients.TryRemove(connectionId, out var cts))
+                {
+                    cts.Cancel();
+                }
+            }
+            catch (Exception ex)
+            {
+                AppLogger.Error($"Error removing client {clientName} ({connectionId}): {ex.Message}");
+                return Task.CompletedTask;
             }
 
             CancellationTokenSource cancellator = CancellationTokenSource.CreateLinkedTokenSource(Context.ConnectionAborted);
