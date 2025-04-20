@@ -6,7 +6,7 @@ using System.Collections.Concurrent;
 
 namespace TruxScrapper;
 
-public class OrderTrackerHub(OrderTrackerService trackerService) : Hub
+public class OrderTrackerHub : Hub
 {
     readonly ConcurrentDictionary<string, CancellationTokenSource> cancelByClients = [];
 
@@ -52,11 +52,10 @@ public class OrderTrackerHub(OrderTrackerService trackerService) : Hub
 
             cancelByClients.TryAdd(clientName, cancellator);
 
-            return trackerService.UpdateConnectionIdAsync(
+            return OrderTrackerService.UpdateConnectionIdAsync(
                 clientName,
                 trackingNumbers,
-                (trackingNumber, history) => Clients.Client(connectionId).SendAsync("Update", new { trackingNumber, history }, cancellator.Token),
-                cancellator.Token);
+                (trackingNumber, history) => Clients.Client(connectionId).SendAsync("Update", new { trackingNumber, history }, cancellator.Token));
         }
         catch (Exception ex)
         {

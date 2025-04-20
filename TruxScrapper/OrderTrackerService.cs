@@ -1,401 +1,303 @@
 using Microsoft.Playwright;
 
 using System.Collections.Concurrent;
+using System.Net.Mime;
 
 namespace TruxScrapper;
 
 public class OrderTrackerService()
 {
-    readonly ConcurrentDictionary<string, CancellationTokenSource> cancelByClients = [];
+	public static async Task UpdateConnectionIdAsync(
+		string clientName,
+		string[] trackingNumbers,
+		Func<string, List<StatusHistory>, Task> pipe)
+	{
+		if (string.IsNullOrWhiteSpace(clientName))
+		{
+			AppLogger.Warn("Client name cannot be null or empty.");
+			return;
+		}
 
-    ~OrderTrackerService()
-    {
-        var cancelByClientsKey = cancelByClients.Keys.ToArray().AsSpan();
+		if (trackingNumbers.Length == 0)
+		{
+			AppLogger.Warn("No tracking numbers found for any clients.");
+			return;
+		}
 
-        foreach (var clientId in cancelByClientsKey)
-        {
-            if (cancelByClients.TryRemove(clientId, out var cancellor))
-            {
-                try
-                {
-                    cancellor.Cancel();
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Error($"Error removing client {clientId}): {ex.Message}");
-                }
-            }
-        }
-    }
+		AppLogger.Info("Launching browser...");
 
-    public async Task UpdateConnectionIdAsync(
-        string clientName,
-        string[] trackingNumbers,
-        Func<string, List<StatusHistory>, Task> pipe,
-        CancellationToken requestCancellationToken)
-    {
-        if (string.IsNullOrWhiteSpace(clientName))
-        {
-            AppLogger.Warn("Client name cannot be null or empty.");
-            return;
-        }
+		try
+		{
+			List<(string name, Scrapper scrapper)> providers = [("Guibault", GetFromGuibaultAsync), ("Minimax", GetFromMinimaxAsync)];
+			using var playwright = await Playwright.CreateAsync();
 
-        if (trackingNumbers.Length == 0)
-        {
-            AppLogger.Warn("No tracking numbers found for any clients.");
-            return;
-        }
+			ConcurrentDictionary<string, List<CancellationTokenSource>> cancellers = [];
+			int total = trackingNumbers.Length * providers.Count;
 
-        AppLogger.Info("Launching browser...");
+			/* Race condition implementation */
 
-        try
-        {
-            List<(string name, Scrapper scrapper)> providers = [("Guibault", GetFromGuibaultAsync), ("Minimax", GetFromMinimaxAsync)];
+			List<Task> numberResolvers = [];
 
-            await Task
-                .WhenAll(trackingNumbers.Select(number =>
-                {
-                    TaskCompletionSource logsCollectorWinner = new();
-                    requestCancellationToken.Register(() => logsCollectorWinner.TrySetCanceled());
-                    ConcurrentBag<CancellationTokenSource> cancellers = [];
+			foreach (var number in trackingNumbers)
+			{
+				TaskCompletionSource logsResolver = new();
 
-                    providers.ForEach((provider) =>
-                    {
-                        CancellationTokenSource cancellationTokenSource = new();
-                        cancellers.Add(cancellationTokenSource);
+				numberResolvers.Add(logsResolver.Task);
+				
+				int count = providers.Count;
 
-                        try
-                        {
-                            AppLogger.Info(provider.name, number, "Starting scrapper...");
+				foreach (var provider in providers)
+				{
+					_ = playwright.Chromium
+						.LaunchAsync(new() { Timeout = 60000, Headless = true })
+					   	.ContinueWith(async browserTask =>
+						{
+							var browser = browserTask.Result;
+							var context = await browser.NewContextAsync(new() { JavaScriptEnabled = true });
 
-                            provider.scrapper(clientName, number, cancellationTokenSource.Token).ContinueWith(async providerResult =>
-                            {
-                                if (providerResult.Result is { } scrapperTask)
-                                {
-                                    foreach (var canceller in cancellers.Except([cancellationTokenSource]))
-                                    {
-                                        canceller.Cancel();
-                                    }
+							_ = provider.scrapper(context, clientName, number, default).ContinueWith(async t =>
+							{
+							   	if (t.Result is { } populator && await populator() is { } logs)
+							   	{
+								   	await pipe(number, logs);
+									logsResolver.SetResult();
+							   	}
+                                if(--count == 0 && !logsResolver.Task.IsCompleted)
+								{
+									logsResolver.SetResult();
+								}
+							});
+						});
+				}
+			}
 
-                                    if (await scrapperTask() is { } logs)
-                                    {
-                                        await pipe(number, logs);
-                                    }
-                                }
-                                logsCollectorWinner.TrySetResult();
-                            });
-                        }
-                        catch (Exception ex)
-                        {
-                            AppLogger.Error(provider.name, number, $"ScraperError: {ex}");
-                        }
-                    });
+			await Task.WhenAll(numberResolvers);
+		}
+		catch (Exception ex)
+		{
+			AppLogger.Error($"General error: {ex}");
+		}
+	}
 
-                    return logsCollectorWinner.Task;
-                }))
-                .WaitAsync(requestCancellationToken);
+	public static async Task<Func<Task<List<StatusHistory>>>?> GetFromMinimaxAsync(
+		IBrowserContext context,
+		string clientName,
+		string trackingNumber,
+		CancellationToken cancellationToken)
+	{
+		var disposed = false;
+		var source = clientName + "@Minimax";
+		var page = await context.NewPageAsync();
 
-            //			TaskCompletionSource updateCompletion = new();
-            //			ConcurrentDictionary<string, List<CancellationTokenSource>> cancellers = [];
-            //			int total = trackingNumbers.Length * providers.Count;
-            //
-            //			/* Race condition implementation */
-            //
-            //			foreach (var (cancellor, number, scrapperTask) in
-            //							from number in trackingNumbers
-            //							from source in providers
-            //							let cancellor = new CancellationTokenSource()
-            //							select (cancellor, number, source.scrapper(clientName, number, cancellor.Token)))
-            //			{
-            //				if (cancellers.TryGetValue(number, out var numberCancellers))
-            //				{
-            //					numberCancellers.Add(cancellor);
-            //				}
-            //				else
-            //				{
-            //					numberCancellers = cancellers[number] = [cancellor];
-            //				}
-            //				_ = scrapperTask.ContinueWith(t =>
-            //				{
-            //					if (t.Exception is null && t.Result is { } populator)
-            //					{
-            //						numberCancellers.Remove(cancellor);
-            //						numberCancellers.ForEach(c =>
-            //						{
-            //							c.Cancel();
-            //						});
-            //
-            //						populator().ContinueWith(p =>
-            //						{
-            //							(number, p.Result).Dump();
-            //							if (Interlocked.Decrement(ref total) is 0)
-            //							{
-            //								updateCompletion.SetResult();
-            //							}
-            //						});
-            //					}
-            //					else
-            //					{
-            //						if (Interlocked.Decrement(ref total) is 0)
-            //						{
-            //							updateCompletion.SetResult();
-            //						}
-            //					}
-            //				});
-            //			}
+		cancellationToken.Register(async () =>
+		{
+			AppLogger.Warn(source, trackingNumber, "Cancelling because of found in other provider");
+			await DisposeAsync();
+		});
 
-            //await updateCompletion.Task;
+		try
+		{
+			AppLogger.Info(source, trackingNumber, "Opening page...");
+			await page.GotoAsync("https://minimax.tracking.dtms.ca", new() { Timeout = 60000 });
 
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error($"General error: {ex}");
-        }
-    }
+			AppLogger.Info(source, trackingNumber, $"Filling with tracking number...");
+			if (await page.WaitForSelectorAsync("input#mat-input-2") is not { } inputField)
+			{
+				AppLogger.Error(source, trackingNumber, "Tracking input field not found.");
+				await DisposeAsync();
+				return null;
+			}
 
-    public static async Task<Func<Task<List<StatusHistory>>>?> GetFromMinimaxAsync(
-        string clientName,
-        string trackingNumber,
-        CancellationToken cancellationToken)
-    {
-        var disposed = false;
-        var playwright = await Playwright.CreateAsync();
-        var browser = await playwright.Chromium.LaunchAsync(new() { Timeout = 60000, Headless = true });
-        var context = await browser.NewContextAsync(new() { JavaScriptEnabled = true });
-        var source = clientName + "@Minimax";
-        var page = await context.NewPageAsync();
+			await inputField.FillAsync(trackingNumber);
 
-        cancellationToken.Register(async () =>
-        {
-            AppLogger.Warn(source, trackingNumber, "Cancelling because of found in other provider");
-            await DisposeAsync();
-        });
+			AppLogger.Info(source, trackingNumber, "Submitting...");
+			await page.ClickAsync("button[mattooltip=\"Click to search\"]");
 
-        try
-        {
-            AppLogger.Info(source, trackingNumber, "Opening page...");
-            await page.GotoAsync("https://minimax.tracking.dtms.ca", new() { Timeout = 60000 });
+			AppLogger.Info(source, trackingNumber, "Waiting for status logs...");
+			if (await page.WaitForSelectorAsync("tbody[role=\"presentation\"] tr:not(:first-child):not(.dx-freespace-row)") is not { } row)
+			{
+				AppLogger.Warn(source, trackingNumber, "Status logs not available!");
+				await DisposeAsync();
+				return null;
+			}
 
-            AppLogger.Info(source, trackingNumber, $"Filling with tracking number...");
-            if (await page.WaitForSelectorAsync("input#mat-input-2") is not { } inputField)
-            {
-                AppLogger.Error(source, trackingNumber, "Tracking input field not found.");
-                await DisposeAsync();
-                return null;
-            }
+			return Populate;
 
-            await inputField.FillAsync(trackingNumber);
+			async Task<List<StatusHistory>> Populate()
+			{
+				List<StatusHistory> results = [];
+				try
+				{
+					while (row is { })
+					{
+						var cells = await row.QuerySelectorAllAsync("td");
 
-            AppLogger.Info(source, trackingNumber, "Submitting...");
-            await page.ClickAsync("button[mattooltip=\"Click to search\"]");
+						if (await cells[1].InnerTextAsync() is not { Length: > 0 } date) break;
 
-            AppLogger.Info(source, trackingNumber, "Waiting for status logs...");
-            if (await page.WaitForSelectorAsync("tbody[role=\"presentation\"] tr:not(:first-child):not(.dx-freespace-row)") is not { } row)
-            {
-                AppLogger.Warn(source, trackingNumber, "Status logs not available!");
-                await DisposeAsync();
-                return null;
-            }
+						var time = await cells[2].InnerTextAsync();
+						var status = await cells[7].InnerTextAsync();
+						var location = await cells[9].InnerTextAsync();
+						results.Add(new($"{date} {time}", status, location));
+						AppLogger.Info(source, trackingNumber, $"Row: {date} {time} | {status}");
+						row = (await row.EvaluateHandleAsync("n => n.nextElementSibling"))?.AsElement();
+					}
 
-            return Populate;
+					AppLogger.Warn(source, trackingNumber, results.Count == 0
+						? "Table loaded, but no status rows found."
+						: $"Successfully extracted {results.Count} status entries.");
+				}
+				catch (Exception ex)
+				{
+					AppLogger.Error(source, trackingNumber, $"ScrapperError @ getting rows: {ex}");
+				}
+				finally
+				{
+					await DisposeAsync();
+				}
 
-            async Task<List<StatusHistory>> Populate()
-            {
-                List<StatusHistory> results = [];
-                try
-                {
-                    while (row is { })
-                    {
-                        var cells = await row.QuerySelectorAllAsync("td");
-                        var date = await cells[1].InnerTextAsync();
+				return results;
+			}
+		}
+		catch (Exception ex)
+		{
+			AppLogger.Error(source, trackingNumber, $"ScraperError @ Scanning page: {ex}");
+			await DisposeAsync();
+			return null;
+		}
 
-                        if ((date?.Trim() ?? "") is "") break;
+		async ValueTask DisposeAsync()
+		{
+			if (disposed) return;
+			disposed = true;
+			await page.CloseAsync();
+		}
+	}
 
-                        var time = await cells[2].InnerTextAsync();
-                        var status = await cells[7].InnerTextAsync();
-                        var location = await cells[9].InnerTextAsync();
-                        results.Add(new($"{date} {time}", status, location));
-                        AppLogger.Info(source, trackingNumber, $"Row: {date} {time} | {status}");
-                        row = (await row.EvaluateHandleAsync("n => n.nextElementSibling"))?.AsElement();
-                    }
+	public static async Task<Func<Task<List<StatusHistory>>>?> GetFromGuibaultAsync(
+		IBrowserContext context,
+		string clientName,
+		string trackingNumber,
+		CancellationToken cancellationToken = default)
+	{
+		var source = clientName + "@Guibaiult";
 
-                    AppLogger.Warn(source, trackingNumber, results.Count == 0
-                        ? "Table loaded, but no status rows found."
-                        : $"Successfully extracted {results.Count} status entries.");
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Error(source, trackingNumber, $"ScrapperError @ getting rows: {ex}");
-                }
-                finally
-                {
-                    await DisposeAsync();
-                }
+		var page = await context.NewPageAsync();
 
-                return results;
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(source, trackingNumber, $"ScraperError @ Scanning page: {ex}");
-            await DisposeAsync();
-            return null;
-        }
+		cancellationToken.Register(async () =>
+		{
+			AppLogger.Info(source, trackingNumber, "Cancelling because it was already resolved by other provider");
+			await page.CloseAsync();
+		});
 
-        async ValueTask DisposeAsync()
-        {
-            if (disposed) return;
-            disposed = true;
-            await page.CloseAsync();
-            await context.CloseAsync();
-            await context.DisposeAsync();
-            await browser.CloseAsync();
-            await browser.DisposeAsync();
-            playwright.Dispose();
-        }
-    }
+		try
+		{
+			AppLogger.Info(source, trackingNumber, "Opening page...");
+			await page.GotoAsync("https://grguweb.tmwcloud.com/trace/external.msw", new() { Timeout = 60000 });
 
-    public static async Task<Func<Task<List<StatusHistory>>>?> GetFromGuibaultAsync(string clientName, string trackingNumber, CancellationToken cancellationToken = default)
-    {
-        var source = clientName + "@Guibaiult";
-        var disposed = false;
+			AppLogger.Info(source, trackingNumber, "Locating tracking input field...");
+			if (await page.QuerySelectorAsync("//input[@type='hidden' and @value='~PTLORDER']/following-sibling::input[@name='search_value[]']") is not { } input)
+			{
+				AppLogger.Info(source, trackingNumber, "Tracking input field not found.");
+				await ClosePageAsync(page);
+				return null;
+			}
 
-        var playwright = await Playwright.CreateAsync();
-        var browser = await playwright.Chromium.LaunchAsync(new() { Timeout = 60000, Headless = true });
-        var context = await browser.NewContextAsync(new() { JavaScriptEnabled = true });
-        var page = await context.NewPageAsync();
+			AppLogger.Info(source, trackingNumber, "Filling tracking number...");
+			await input.FillAsync(trackingNumber);
 
-        cancellationToken.Register(async () =>
-        {
-            AppLogger.Info(source, trackingNumber, "Cancelling because it was already resolved by other provider");
-            await DisposeAsync();
-        });
+			TaskCompletionSource<Func<Task<List<StatusHistory>>>?> resolverCompleted = new();
 
-        try
-        {
-            AppLogger.Info(source, trackingNumber, "Opening page...");
-            await page.GotoAsync("https://grguweb.tmwcloud.com/trace/external.msw", new() { Timeout = 60000 });
+			context.Page += async (_, newPage) =>
+			{
+				try
+				{
+					await newPage.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+					AppLogger.Info(source, trackingNumber, "New tab loaded. URL: " + newPage.Url);
 
-            AppLogger.Info(source, trackingNumber, "Locating tracking input field...");
-            if (await page.QuerySelectorAsync("//input[@type='hidden' and @value='~PTLORDER']/following-sibling::input[@name='search_value[]']") is not { } input)
-            {
-                AppLogger.Info(source, trackingNumber, "Tracking input field not found.");
-                await ClosePageAsync(page);
-                await DisposeAsync();
-                return null;
-            }
+					// Wait for actual data rows to appear
+					AppLogger.Info(source, trackingNumber, "Waiting for status logs...");
+					if (await newPage.WaitForSelectorAsync("div.k-grid-content tbody tr", new() { State = WaitForSelectorState.Attached }) is not { } row
+						//|| (await row.EvaluateAsync("n => n.closest('body')?.querySelector('#billDetailsOutput h2 span')?.innerText?.trim()")) is not {} jsonValue
+						//|| jsonValue.GetString() != trackingNumber
+						)
+					{
+						AppLogger.Warn(source, trackingNumber, "Status logs not available!");
+						await ClosePageAsync(newPage);
+						Resolve();
+						return;
+					}
 
-            AppLogger.Info(source, trackingNumber, "Filling tracking number...");
-            await input.FillAsync(trackingNumber);
+					resolverCompleted.SetResult(Populate);
 
-            TaskCompletionSource<Func<Task<List<StatusHistory>>>?> resolverCompleted = new();
+					async Task<List<StatusHistory>> Populate()
+					{
+						List<StatusHistory> results = [];
+						try
+						{
+							while (row is { })
+							{
+								var cells = await row.QuerySelectorAllAsync("td");
+								if (cells.Count >= 2)
+								{
+									var dateText = await cells[0].InnerTextAsync();
+									var statusCode = await cells[1].InnerTextAsync();
 
-            context.Page += async (_, newPage) =>
-            {
-                try
-                {
-                    await newPage.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
-                    AppLogger.Info(source, trackingNumber, "New tab loaded. URL: " + newPage.Url);
+									AppLogger.Info(source, trackingNumber, $"Row: {dateText} | {statusCode}");
 
-                    // Wait for actual data rows to appear
-                    AppLogger.Info(source, trackingNumber, "Waiting for status logs...");
-                    if (await newPage.WaitForSelectorAsync("div.k-grid-content tbody tr", new() { State = WaitForSelectorState.Attached }) is not { } row
-                        //|| (await row.EvaluateAsync("n => n.closest('body')?.querySelector('#billDetailsOutput h2 span')?.innerText?.trim()")) is not {} jsonValue
-                        //|| jsonValue.GetString() != trackingNumber
-                        )
-                    {
-                        AppLogger.Warn(source, trackingNumber, "Status logs not available!");
-                        await ClosePageAsync(newPage);
-                        await DisposeAsync();
-                        Resolve();
-                        return;
-                    }
+									results.Add(new(dateText.Trim(), statusCode.Trim(), ""));
+								}
+								row = (await row.EvaluateHandleAsync("n => n.nextElementSibling")).AsElement();
+							}
+						}
+						catch (Exception ex)
+						{
+							AppLogger.Error(source, trackingNumber, $"Popup ScraperError @ Scanning page: {ex}");
+						}
+						finally
+						{
+							await newPage.CloseAsync();
+						}
 
-                    resolverCompleted.SetResult(Populate);
+						return results;
+					}
+				}
+				catch (Exception ex)
+				{
+					AppLogger.Error(source, trackingNumber, $"Popup ScraperError @ Updates error: {ex.Message}");
 
-                    async Task<List<StatusHistory>> Populate()
-                    {
-                        List<StatusHistory> results = [];
-                        try
-                        {
-                            while (row is { })
-                            {
-                                var cells = await row.QuerySelectorAllAsync("td");
-                                if (cells.Count >= 2)
-                                {
-                                    var dateText = await cells[0].InnerTextAsync();
-                                    var statusCode = await cells[1].InnerTextAsync();
+					await newPage.CloseAsync();
 
-                                    AppLogger.Info(source, trackingNumber, $"Row: {dateText} | {statusCode}");
+					if (!resolverCompleted.Task.IsCompleted) resolverCompleted.SetResult(null);
+				}
+			};
 
-                                    results.Add(new(dateText.Trim(), statusCode.Trim(), ""));
-                                }
-                                row = (await row.EvaluateHandleAsync("n => n.nextElementSibling")).AsElement();
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            AppLogger.Error(source, trackingNumber, $"Popup ScraperError @ Scanning page: {ex}");
-                        }
-                        finally
-                        {
-                            await newPage.CloseAsync();
-                            await DisposeAsync();
-                        }
+			AppLogger.Info(source, trackingNumber, "Submitting...");
+			await page.ClickAsync("input[type='button'][value='Submit']");
+			await ClosePageAsync(page);
 
-                        return results;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    AppLogger.Error(source, trackingNumber, $"Popup ScraperError @ Updates error: {ex.Message}");
+			return await resolverCompleted.Task;
 
-                    await newPage.CloseAsync();
+			void Resolve(Func<Task<List<StatusHistory>>>? resolver = null)
+			{
+				if (!resolverCompleted.Task.IsCompleted) resolverCompleted.TrySetResult(resolver);
+			}
+		}
+		catch (Exception ex)
+		{
+			AppLogger.Error(source, trackingNumber, $"ScraperError @ Scanning page: {ex}");
+			await ClosePageAsync(page);
+			return null;
+		}
 
-                    if (!resolverCompleted.Task.IsCompleted) resolverCompleted.SetResult(null);
-
-                    await DisposeAsync();
-                }
-            };
-
-            AppLogger.Info(source, trackingNumber, "Submitting...");
-            await page.ClickAsync("input[type='button'][value='Submit']");
-            await ClosePageAsync(page);
-
-            return await resolverCompleted.Task;
-
-            void Resolve(Func<Task<List<StatusHistory>>>? resolver = null)
-            {
-                if (!resolverCompleted.Task.IsCompleted) resolverCompleted.TrySetResult(resolver);
-            }
-        }
-        catch (Exception ex)
-        {
-            AppLogger.Error(source, trackingNumber, $"ScraperError @ Scanning page: {ex}");
-            await ClosePageAsync(page);
-            await DisposeAsync();
-            return null;
-        }
-
-        async ValueTask ClosePageAsync(IPage page)
-        {
-            if (!page.IsClosed) await page.CloseAsync();
-        }
-
-        async Task DisposeAsync()
-        {
-            if (disposed) return;
-            disposed = true;
-            await context.CloseAsync();
-            await context.DisposeAsync();
-            await browser.CloseAsync();
-            await browser.DisposeAsync();
-        }
-    }
+		async ValueTask ClosePageAsync(IPage page)
+		{
+			if (!page.IsClosed) await page.CloseAsync();
+		}
+	}
 }
 
-
 delegate Task<Func<Task<List<StatusHistory>>>?> Scrapper(
+    IBrowserContext context,
     string clientName,
     string trackingNumber,
     CancellationToken cancellationToken);

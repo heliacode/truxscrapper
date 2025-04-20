@@ -18,19 +18,27 @@ export async function suscribeToClientEvents() {
     }
     connection.on("Update", receiveUpdates);
 
-    requestUpdates(clientName, getClientTrackingNumbers(clientName)).then();
-
     connection.invoke('UpdateConnectionIdAsync', clientName, getClientTrackingNumbers(clientName)).then();
 }
 
-
+// TODO: Implement last update from local storage
 function receiveUpdates({ trackingNumber, history }) {
     console.log("Received status history:", history);
+
+    const clientName = getCurrentClient();
+    const trackingNumbers = getClientTrackingNumbersLogs(clientName);
+    trackingNumbers[trackingNumber] = history;
+    localStorage.setItem(clientNameAsId(getCurrentClient()), JSON.stringify(trackingNumbers));
+
+    console.log("Saved status history:", trackingNumbers);
+
+    const list = document.getElementById('freightList');
+    tryRemoveEmptyList();
 
     //remove empty list message in case of history is not empty
     if (history.length > 0) {
         createListContainer(trackingNumber);
-        updateListContainer(trackingNumber, history);
+        updateListContainer(trackingNumber, history ?? []);
     }
     else {
         removeListContainer(trackingNumber);
@@ -67,7 +75,6 @@ function updateListContainer(trackingNumber, history) {
     document.querySelector(`div[data-tracking-number="${trackingNumber}"] md-list`)
             .innerHTML = history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
                                 .map(i => mapUpdate(i, trackingNumber)).join('');
-
 }
 
 function removeListContainer(trackingNumber) {
@@ -93,10 +100,23 @@ function mapUpdate(update) {
 }
 
 function showNotification(title, message) {
-    alert(`${title}: ${message}`);
+    console.log(`${title}: ${message}`);
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+
+    const trackingNumbers = getClientTrackingNumbersLogs(getCurrentClient());
+
+    if (trackingNumbers && Object.keys(trackingNumbers).length > 0) {        
+        tryRemoveEmptyList();
+        Object.entries(trackingNumbers).forEach(([num, history]) => {
+            createListContainer(num);
+            updateListContainer(num, history ?? [])
+            // Optionally, load cached history here if you implement it
+        });
+    } else {
+        tryAddEmptyList();
+    }
 
     document.getElementById('addTrackingNumbers').addEventListener('click', async () => {
         try {
@@ -133,6 +153,7 @@ const TIMEOUT = 5 * 60 * 1000;
 
 async function requestUpdates(clientName, trackingNumbers) {
 
+
     if (!trackingNumbers.length) {
         tryAddEmptyList()
         return;
@@ -140,9 +161,7 @@ async function requestUpdates(clientName, trackingNumbers) {
     
     tryRemoveEmptyList();
 
-    trackingNumbers.forEach(num => {       
-        createListContainer(num);
-    });
+    trackingNumbers.forEach(num => createListContainer(num));
 
     console.log(`Retrieveing status for ${trackingNumbers} (Client: ${clientName})`)
 
@@ -156,10 +175,6 @@ async function requestUpdates(clientName, trackingNumbers) {
 
     const signal = currentAborter.signal;
 
-    signal.addEventListener('abort', /** @param {AbortSignalEventMap} e */ e => {
-        reject(new DOMException('Delay aborted', 'AbortError'));
-    });
-
     while (!signal.aborted) {
         connection.invoke('UpdateConnectionIdAsync', clientName, trackingNumbers).then();
         await delay(TIMEOUT, signal);
@@ -167,21 +182,24 @@ async function requestUpdates(clientName, trackingNumbers) {
 }
 
 function getCurrentClient() {
-    while (!(localStorage.currentClient ??= prompt('Enter your name:')?.trim()));
-    return localStorage.currentClient;
+    if (localStorage.currentClient) return localStorage.currentClient;
+    let clientName = null;
+    while (!(clientName ??= prompt('Enter your name:')?.trim()));
+    return localStorage.currentClient = clientName;
 }
 
 function getClientTrackingNumbers(client) {
-    if (!client) return false;
+    return Object.keys(getClientTrackingNumbersLogs(client));
+}
 
+function getClientTrackingNumbersLogs(client) {
+    if (!client) return [];
     const clientStoreName = clientNameAsId(client);
-    const trackingNumbers = JSON.parse(localStorage.getItem(clientStoreName)) || [];
-
-    return trackingNumbers;
+    return JSON.parse(localStorage.getItem(clientStoreName)) || {};
 }
 
 function clientNameAsId(client) {
-    return client.replaceAll(/[^\w]+/g, '_') + "_trackingNumbers";
+    return client.replaceAll(/[^\w]+/g, '_') + "_logs";
 }
 
 export function addCurrentClientTrackingNumbers() {
@@ -193,13 +211,14 @@ function addClientTrackingNumbers(client, newNumbers) {
 
     const clientStoreName = clientNameAsId(client);
 
-    const trackingNumbers = JSON.parse(localStorage.getItem(clientStoreName)) || [];
+    const trackingNumbers = JSON.parse(localStorage.getItem(clientStoreName)) || {};
     newNumbers = newNumbers.split(',').map(num => num.trim()).filter(num => num !== '');
 
-    trackingNumbers.push(...newNumbers);
+    newNumbers.forEach(num => trackingNumbers[num] ??= []);
+
     localStorage.setItem(clientStoreName, JSON.stringify(trackingNumbers));
 
-    return trackingNumbers;
+    return newNumbers;
 }
 
 function removeTrackingNumbers(client, trackingNumbers) {

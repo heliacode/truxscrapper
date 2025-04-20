@@ -1,8 +1,5 @@
 ﻿using TruxScrapper;
 
-using TruxScrapper;
-;
-
 var builder = WebApplication.CreateBuilder(args);
 
 // Configurar servicios
@@ -10,7 +7,6 @@ builder.Services.AddSignalR();
 builder.Services
     // .AddSingleton(_ => new SqliteConnection("Data Source=tracking.db"))
     // .AddSingleton<ITrackingRepository, TrackingRepository>()
-    .AddSingleton<OrderTrackerService>()
     .AddSingleton<OrderTrackerHub>();
 //builder.Services.AddHostedService(s => new OrderTrackerBackgroundService(s.GetRequiredService<ITrackingRepository>(), s.GetRequiredService<OrderTrackerHub>()));
 
