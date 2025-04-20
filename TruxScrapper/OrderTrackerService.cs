@@ -28,7 +28,8 @@ public class OrderTrackerService()
 
 		try
 		{
-			List<(string name, Scrapper scrapper)> providers = [("Guibault", GetFromGuibaultAsync), ("Minimax", GetFromMinimaxAsync)];
+			
+			List<(string name, Scrapper scrapper)> providers = [("Minimax", GetFromMinimaxAsync), ("Guibault", GetFromGuibaultAsync)];
 			using var playwright = await Playwright.CreateAsync();
 
 			ConcurrentDictionary<string, List<CancellationTokenSource>> cancellers = [];
@@ -43,32 +44,32 @@ public class OrderTrackerService()
 				TaskCompletionSource logsResolver = new();
 
 				numberResolvers.Add(logsResolver.Task);
-				
+
 				int count = providers.Count;
 
-				foreach (var provider in providers)
-				{
-					_ = playwright.Chromium
-						.LaunchAsync(new() { Timeout = 60000, Headless = true })
-					   	.ContinueWith(async browserTask =>
+				_ = playwright.Chromium
+					.LaunchAsync(new() { Timeout = 60000, Headless = true })
+					   .ContinueWith(async browserTask =>
+					{
+						foreach (var provider in providers)
 						{
 							var browser = browserTask.Result;
 							var context = await browser.NewContextAsync(new() { JavaScriptEnabled = true });
 
 							_ = provider.scrapper(context, clientName, number, default).ContinueWith(async t =>
-							{
-							   	if (t.Result is { } populator && await populator() is { } logs)
-							   	{
-								   	await pipe(number, logs);
-									logsResolver.SetResult();
-							   	}
-                                if(--count == 0 && !logsResolver.Task.IsCompleted)
 								{
-									logsResolver.SetResult();
-								}
-							});
-						});
-				}
+									if (t.Result is { } populator && await populator() is { } logs)
+									{
+										await pipe(number, logs);
+										logsResolver.SetResult();
+									}
+									if (--count == 0 && !logsResolver.Task.IsCompleted)
+									{
+										logsResolver.SetResult();
+									}
+								});
+						}
+					});
 			}
 
 			await Task.WhenAll(numberResolvers);
