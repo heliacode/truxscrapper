@@ -20,6 +20,8 @@ app.UseHttpsRedirection();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
+// Add Health check endpoint
+app.MapGet("/health", () => "OK");
 // Configurar SignalR hub
 app.MapHub<OrderTrackerHub>("/ordertracker");
 
