@@ -325,10 +325,9 @@
           this.logs = {};
           this.loadingItems = [];
           this.openConfig = true;
-          // this.signalRConnection.stop().then(() => {
-          //   console.log("SignalR disconnected");
-          //   clearInterval(this.intervalRef);
-          // });
+          if (this.intervalRef) {
+            clearInterval(this.intervalRef);
+          }
         },
         saveName() {
           // const shouldPreserveLogs = this.currentClient !== this.$refs.clientNameInput.internalValue;
