@@ -7,6 +7,7 @@
   <link href="vue/vuetify.min.css" rel="stylesheet">
   <!-- <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+  <!-- Vue.js and Vuetify libraries -->
   <script src="vue/vue.min.js"></script>
   <script src="vue/vuetify.min.js"></script>
   <!-- <script type="module" src="app.js"></script> -->
@@ -19,8 +20,10 @@
 
 <body>
   <div id="app">
+    <!-- Main Vue application container -->
     <v-app>
 
+      <!-- Configuration dialog for managing tracking numbers -->
       <v-dialog persistent v-model="openConfig" max-width="600px">
 
         <v-card class="md3-dialog" elevation="12">
@@ -34,6 +37,7 @@
 
             <v-spacer></v-spacer>
 
+            <!-- Refresh interval configuration -->
             <v-text-field class="align-start col-3" v-model="intervalTime"
                           :rules="[computedInternvalTimeout >= minimummTimeout || 'Timeout should upper 30s']"
                           v-show="hasClientName" rounded hide-details="auto" label="Timeout" type="number" :min="minimummTimeout"
@@ -154,7 +158,7 @@
             </v-col>
           </v-row>
           <v-expansion-panels multiple class="md3-dialog" popout>
-            <v-expansion-panel :disabled="!!logs.error" v-for="[num, logs] in Object.entries(logs)">
+            <v-expansion-panel v-for="[num, update] in Object.entries(logs)">
               <v-expansion-panel-header ripple>
                 <v-row justify="space-between" align="center">
                   <v-col cols="auto">
@@ -166,14 +170,16 @@
                   </v-col>
                   <v-col>
                     <h3 class="mb-2">#{{num}}</h3>
-                    <v-chip x-small v-if="logs.error" color="red">{{logs.error}}</v-chip>
-                    <span v-else-if="logs.lastUpdated" class="text--secondary">{{logs.lastUpdated | toRelative}}</span>
+                    <v-chip x-small v-if="update.failCount" color="red">
+                      Attempt #{{update.failCount}}: Could not retrieve data from given providers
+                    </v-chip>
+                    <span v-if="update.lastUpdated" class="text--secondary">{{update.lastUpdated | toRelative}}</span>
                     <span v-else class="text--secondary">(Not updated)</span>
                   </v-col>
                 </v-row>
               </v-expansion-panel-header>
               <v-expansion-panel-content>
-                <v-list-item v-for="log in logs.history" :key="log.timestamp">
+                <v-list-item v-for="log in update.history" :key="log.timestamp">
                   <v-list-item-content>
                     <v-list-item-title>{{ log.company || 'Unknown location' }}</v-list-item-title>
                     <v-list-item-subtitle>{{ log.location || 'Unknown company ' }}</v-list-item-subtitle>
@@ -212,202 +218,259 @@
 
   <script type="module">
     import { HubConnectionBuilder } from "./signalr.min.js"
-    import { read, write } from './localstore.js'
+      import { read, write } from './localstore.js'
 
-    let clientName = read('currentClient') || '';
+      // Retrieve client name from local storage or default to empty string
+      let clientName = read('currentClient') || '';
 
-    const TIMEOUT = 3 * 60 * 1000,
-      parts = {
-        s: 1000,
-        m: 60 * 1000,
-        h: 60 * 60 * 1000
-      },
-      [intervalTime, intervalTimePart] = (read(`${clientNameAsId(clientName)}_interval`) ?? [TIMEOUT, 0]),
-      rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+      // Constants and configuration
+      const TIMEOUT = 3 * 60 * 1000,  // Default timeout: 3 minutes in milliseconds
+        parts = {  // Time unit conversion factors
+          s: 1000,
+          m: 60 * 1000,
+          h: 60 * 60 * 1000
+        },
+        // Retrieve interval settings from local storage or use defaults
+        [intervalTime, intervalTimePart] = (read(`${clientNameAsId(clientName)}_interval`) ?? [TIMEOUT, 0]),
+        // Formatter for relative time display
+        rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
-    new Vue({
-      el: '#app',
-      vuetify: new Vuetify({
-        theme: {
-          dark: window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true,
-          options: {
-            themeCache: {
-              get: key => localStorage.getItem(key),
-              set: (key, value) => (console.log(key), localStorage.setItem(key, value)),
-            },
+      new Vue({
+        el: '#app',
+        vuetify: new Vuetify({
+          theme: {
+            // Auto-detect dark mode from system preferences
+            dark: window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true,
+            options: {
+              themeCache: {
+                get: key => localStorage.getItem(key),
+                set: (key, value) => (console.log(key), localStorage.setItem(key, value)),
+              },
+            }
+          }
+        }),
+        // Custom filters for data formatting
+        filters: {
+          // Convert timestamps to relative time format (e.g., "2 hours ago")
+          toRelative(v)
+          {
+            const now = Date.now(),
+              diffMs = new Date(v) - now,
+              diffSeconds = Math.round(diffMs / 1000),
+              diffMinutes = Math.round(diffSeconds / 60),
+              diffHours = Math.round(diffMinutes / 60),
+              diffDays = Math.round(diffHours / 24),
+              diffWeeks = Math.round(diffDays / 7),
+              diffMonths = Math.round(diffDays / 30.42), // Average days per month
+              diffYears = Math.round(diffDays / 365.25); // Average days per year (accounting for leap years)
+
+            // Return the appropriate time unit based on the difference magnitude
+            if (Math.abs(diffYears) >= 1) return rtf.format(diffYears, 'year');
+            if (Math.abs(diffMonths) >= 1) return rtf.format(diffMonths, 'month');
+            if (Math.abs(diffWeeks) >= 1) return rtf.format(diffWeeks, 'week');
+            if (Math.abs(diffDays) >= 1) return rtf.format(diffDays, 'day');
+            if (Math.abs(diffHours) >= 1) return rtf.format(diffHours, 'hour');
+            if (Math.abs(diffMinutes) >= 1) return rtf.format(diffMinutes, 'minute');
+            if (Math.abs(diffSeconds) >= 1) return rtf.format(diffSeconds, 'second');
+            return rtf.format(0, 'second'); // Fallback for no difference
+          }
+        },
+        computed: {
+          // Calculate the actual timeout value based on interval time and unit
+          computedInternvalTimeout()
+          {
+            return this.intervalTime * parts[this.timeParts[this.intervalTimePart][0]] || TIMEOUT;
+          },
+          // List of tracking numbers that aren't currently being loaded
+          nonTrackedNumbers()
+          {
+            return Object.keys(this.logs).filter(tn => !this.isLoading(tn));
+          },
+          // Check if there are no logs to display
+          hasntLogs()
+          {
+            return Object.keys(this.logs).length === 0
+          },
+          // Check if user has provided a client name
+          hasClientName()
+          {
+            return !!this.currentClient?.trim()
+          },
+          // Validation logic for client name
+          cantSaveName()
+          {
+            return this.nameRules.some(r => typeof r === "string");
+          },
+          nameRules()
+          {
+            return this.rules.map(r => r(this.editClientName.trim()));
+          },
+          // Validation logic for tracking numbers
+          cantAddTrackingNumber()
+          {
+            return this.trackingNumberRules.some(r => typeof r === "string");
+          },
+          trackingNumberRules()
+          {
+            return this.rules
+              .concat(v => !(v?.trim() in this.logs) || "Number already exists")
+              .map(r => r(this.trackingNumberEdit.trim()));
+          }
+        },
+        data: {
+          trackingNumberEdit: '',
+          minimummTimeout: TIMEOUT,
+          editClientName: '',
+          loadingItems: [],
+          intervalRef: null,
+          intervalTime,
+          intervalTimePart,
+          timeParts: ['second(s)', 'minute(s)', 'hour(s)'],
+          currentClient: clientName,
+          openConfig: false,
+          rules: [
+            v => !!v || 'Value is required',
+            v => (v.length > 4) || 'Value must be less than 4 characters',
+          ],
+          logs: read(clientNameAsId(clientName)) ?? {},
+          signalRConnection: new HubConnectionBuilder().withUrl("/ordertracker").build()
+        },
+        watch: {
+          computedInternvalTimeout(v)
+          {
+            if (v > TIMEOUT)
+            {
+              write(`${clientNameAsId(clientName)}_interval`, [this.intervalTime, this.intervalTimePart]);
+            }
+          }
+        },
+        created()
+        {
+          this.connect().then();
+        },
+        methods: {
+          // Reset all application data and local storage
+          clearSession()
+          {
+            Object.keys(localStorage).forEach(key =>
+            {
+              localStorage.removeItem(key);
+            });
+            this.currentClient = this.editClientName = this.trackingNumberEdit = '';
+            this.logs = {};
+            this.loadingItems = [];
+            this.openConfig = true;
+            if (this.intervalRef)
+            {
+              clearInterval(this.intervalRef);
+            }
+          },
+          // Store client name and initialize logs
+          saveName()
+          {
+            write('currentClient', this.currentClient = this.editClientName);
+            write(clientNameAsId(this.currentClient), this.logs = {});
+          },
+          // Add a new tracking number to monitor
+          addTrackingNumber(trackingNumber)
+          {
+            this.$set(this.logs, trackingNumber, { lastUpdated: null, history: [] });
+            write(clientNameAsId(this.currentClient), this.logs);
+            this.trackingNumberEdit = '';
+          },
+          // Remove a tracking number and save changes
+          removeTrackingNumber(key)
+          {
+            this.removeLoadingItem(key);
+            this.$delete(this.logs, key);
+            this.$nextTick(() => write(clientNameAsId(this.currentClient), this.logs));
+          },
+          // Check if a tracking number is currently being loaded
+          isLoading(key)
+          {
+            return this.loadingItems.includes(key);
+          },
+          // Mark tracking numbers as loading
+          addLoadingItems(...tracingNumbers)
+          {
+            this.loadingItems.push(...tracingNumbers);
+          },
+          // Remove tracking numbers from loading state
+          removeLoadingItem(...tracingNumbers)
+          {
+            this.loadingItems = this.loadingItems.filter(tn => !tracingNumbers.includes(tn));
+          },
+          // Establish SignalR connection to the tracking service
+          async connect()
+          {
+            try
+            {
+              await this.signalRConnection.start();
+              this.signalRConnection.on("Update", this.receiveUpdates);
+              console.log("SignalR connected");
+              this.watchForNumbers();
+            } catch (err)
+            {
+              console.error("Error connecting to SignalR:", err);
+            }
+          },
+          // Main tracking method - requests updates for tracking numbers
+          watchForNumbers()
+          {
+            // Exit if SignalR is not connected
+            if (this.signalRConnection.state !== "Connected")
+            {
+              console.log("SignalR not connected, attempting to connect...");
+              return; // Don't proceed if not connected
+            }
+            if (this.intervalRef !== null)
+            {
+              clearInterval(this.interval);
+            }
+
+            const numbersToTrack = this.nonTrackedNumbers;
+
+            if (!numbersToTrack.length)
+            {
+              return;
+            }
+
+            this.addLoadingItems(...numbersToTrack);
+
+            this.signalRConnection.invoke('UpdateConnectionIdAsync', this.currentClient, numbersToTrack).then();
+
+            // Schedule next update based on configured interval
+            this.intervalRef = setInterval(this.watchForNumbers, this.computedInternvalTimeout);
+          },
+          // Handle tracking updates from the server
+          receiveUpdates({ trackingNumber, history })
+          {
+            this.removeLoadingItem(trackingNumber);
+
+            let failCount = this.logs[trackingNumber]?.failCount ?? 0;
+            const oldHistory = this.logs[trackingNumber]?.history;
+
+            if (!history.length)
+            {
+              if (!!oldHistory?.length) history = oldHistory;
+              failCount++;
+            }
+            else
+            {
+              failCount = 0
+            }
+
+            this.$set(this.logs, trackingNumber, { failCount, status: history[0]?.status, lastUpdated: history[0]?.timestamp, history });
+            write(clientNameAsId(this.currentClient), this.logs);
           }
         }
-      }),
-      filters: {
-        toRelative(v) {
-          const now = Date.now(),
-            diffMs = new Date(v) - now,
-            diffSeconds = Math.round(diffMs / 1000),
-            diffMinutes = Math.round(diffSeconds / 60),
-            diffHours = Math.round(diffMinutes / 60),
-            diffDays = Math.round(diffHours / 24),
-            diffWeeks = Math.round(diffDays / 7),
-            diffMonths = Math.round(diffDays / 30.42), // Average days per month
-            diffYears = Math.round(diffDays / 365.25); // Average days per year (accounting for leap years)
+      });
 
-          if (Math.abs(diffYears) >= 1) return rtf.format(diffYears, 'year');
-          if (Math.abs(diffMonths) >= 1) return rtf.format(diffMonths, 'month');
-          if (Math.abs(diffWeeks) >= 1) return rtf.format(diffWeeks, 'week');
-          if (Math.abs(diffDays) >= 1) return rtf.format(diffDays, 'day');
-          if (Math.abs(diffHours) >= 1) return rtf.format(diffHours, 'hour');
-          if (Math.abs(diffMinutes) >= 1) return rtf.format(diffMinutes, 'minute');
-          if (Math.abs(diffSeconds) >= 1) return rtf.format(diffSeconds, 'second');
-          return rtf.format(0, 'second'); // Fallback for no difference
-        }
-      },
-      computed: {
-        computedInternvalTimeout() {
-          return this.intervalTime * parts[this.timeParts[this.intervalTimePart][0]] || TIMEOUT;
-        },
-        nonTrackedNumbers() {
-          return Object.keys(this.logs).filter(tn => !this.isLoading(tn));
-        },
-        hasntLogs() {
-          return Object.keys(this.logs).length === 0
-        },
-        hasClientName() {
-          return !!this.currentClient?.trim()
-        },
-        cantSaveName() {
-          return this.nameRules.some(r => typeof r === "string");
-        },
-        nameRules() {
-          return this.rules.map(r => r(this.editClientName.trim()));
-        },
-        cantAddTrackingNumber() {
-          return this.trackingNumberRules.some(r => typeof r === "string");
-        },
-        trackingNumberRules() {
-          return this.rules
-            .concat(v => !(v?.trim() in this.logs) || "Number already exists")
-            .map(r => r(this.trackingNumberEdit.trim()));
-        }
-      },
-      data: {
-        trackingNumberEdit: '',
-        minimummTimeout: TIMEOUT,
-        editClientName: '',
-        loadingItems: [],
-        intervalRef: null,
-        intervalTime,
-        intervalTimePart,
-        timeParts: ['second(s)', 'minute(s)', 'hour(s)'],
-        currentClient: clientName,
-        openConfig: false,
-        rules: [
-          v => !!v || 'Value is required',
-          v => (v.length > 4) || 'Value must be less than 4 characters',
-        ],
-        logs: read(clientNameAsId(clientName)) ?? {},
-        signalRConnection: new HubConnectionBuilder().withUrl("/ordertracker").build()
-      },
-      watch: {
-        computedInternvalTimeout(v) {
-          if (v > TIMEOUT) {
-            write(`${clientNameAsId(clientName)}_interval`, [this.intervalTime, this.intervalTimePart]);
-          }
-        }
-      },
-      created() {
-        this.connect().then();
-      },
-      methods: {
-        clearSession(){
-          Object.keys(localStorage).forEach(key => {
-            localStorage.removeItem(key);
-          });
-          this.currentClient = this.editClientName = this.trackingNumberEdit = '';
-          this.logs = {};
-          this.loadingItems = [];
-          this.openConfig = true;
-          if (this.intervalRef) {
-            clearInterval(this.intervalRef);
-          }
-        },
-        saveName() {
-          // const shouldPreserveLogs = this.currentClient !== this.$refs.clientNameInput.internalValue;
-          write('currentClient', this.currentClient = this.editClientName);
-          write(clientNameAsId(this.currentClient), this.logs = {});
-        },
-        addTrackingNumber(trackingNumber) {
-          this.$set(this.logs, trackingNumber, { lastUpdated: null, error: null, history: [] });
-          write(clientNameAsId(this.currentClient), this.logs);
-          this.trackingNumberEdit = '';
-        },
-        removeTrackingNumber(key) {
-          this.removeLoadingItem(key);
-          this.$delete(this.logs, key);
-          this.$nextTick(() => write(clientNameAsId(this.currentClient), this.logs));
-        },
-        isLoading(key) {
-          return this.loadingItems.includes(key);
-        },
-        addLoadingItems(...tracingNumbers) {
-          this.loadingItems.push(...tracingNumbers);
-        },
-        removeLoadingItem(...tracingNumbers) {
-          this.loadingItems = this.loadingItems.filter(tn => !tracingNumbers.includes(tn));
-        },
-        async connect() {
-          try {
-            await this.signalRConnection.start();
-            console.log("SignalR connected");
-            this.watchForNumbers();
-          } catch (err) {
-            console.error("Error connecting to SignalR:", err);
-          }
-        },
-        watchForNumbers() {
-          // Exit if SignalR is not connected
-          if (this.signalRConnection.state !== "Connected") {
-            console.log("SignalR not connected, attempting to connect...");
-            return; // Don't proceed if not connected
-          }
-          if (this.intervalRef !== null) {
-            clearInterval(this.interval);
-          }
-
-          const numbersToTrack = this.nonTrackedNumbers;
-
-          if (!numbersToTrack.length) {
-            return;
-          }
-
-          this.addLoadingItems(...numbersToTrack);
-
-          this.signalRConnection.off("Update", this.receiveUpdates);
-          this.signalRConnection.on("Update", this.receiveUpdates);
-          this.signalRConnection.invoke('UpdateConnectionIdAsync', this.currentClient, numbersToTrack).then();
-
-          this.intervalRef = setInterval(this.watchForNumbers, this.computedInternvalTimeout);
-        },
-        receiveUpdates({ trackingNumber, history, error }) {
-          this.removeLoadingItem(trackingNumber);
-          if (error) {
-            const { status, lastUpdated = new Date().toJSON(), history } = this.logs;
-            console.error("Error receiving updates:", error);
-            this.$set(this.logs, trackingNumber, { status, lastUpdated, error, history });
-          }
-          else{
-            this.$set(this.logs, trackingNumber, { status: history[0]?.status, lastUpdated: history[0]?.timestamp, error, history });
-          }
-          write(clientNameAsId(this.currentClient), this.logs);
-        }
+      // Helper function to create a safe storage key from client name
+      function clientNameAsId(client)
+      {
+        return client.replaceAll(/[^\w]+/g, '_') + "_logs";
       }
-    });
-
-
-
-    function clientNameAsId(client) {
-      return client.replaceAll(/[^\w]+/g, '_') + "_logs";
-    }
-
-
   </script>
 </body>
 

@@ -5,7 +5,7 @@ using System.Net.Mime;
 
 namespace TruxScrapper;
 
-public delegate Task PipeNotifier(string trackingNumber, List<StatusHistory> logs, string? message = null);
+public delegate Task PipeNotifier(string trackingNumber, List<StatusHistory> logs);
 public class OrderTrackerService()
 {
 	public static async Task UpdateConnectionIdAsync(
@@ -66,7 +66,7 @@ public class OrderTrackerService()
 									}
 									if (--count == 0 && !logsResolver.Task.IsCompleted)
 									{
-										await pipe(number, [], "Not found in any provider.");
+										await pipe(number, []);
 										logsResolver.SetResult();
 									}
 								});

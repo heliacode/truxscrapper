@@ -55,9 +55,9 @@ public class OrderTrackerHub : Hub
             return OrderTrackerService.UpdateConnectionIdAsync(
                 clientName,
                 trackingNumbers,
-                (trackingNumber, history, error) => Clients
+                (trackingNumber, history) => Clients
                     .Client(connectionId)
-                    .SendAsync("Update", new { trackingNumber, history, error }, cancellator.Token));
+                    .SendAsync("Update", new { trackingNumber, history }, cancellator.Token));
         }
         catch (Exception ex)
         {
