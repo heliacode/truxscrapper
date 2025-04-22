@@ -35,29 +35,19 @@
             <v-spacer></v-spacer>
 
             <v-text-field class="align-start col-3" v-model="intervalTime"
-              :rules="[computedInternvalTimeout >= minimummTimeout || 'Timeout should upper 30s']" v-show="hasClientName" rounded
-              hide-details="auto" label="Timeout" type="number" :min="minimummTimeout" dense class="mt-3" width="100px"
-              outlined>
+                          :rules="[computedInternvalTimeout >= minimummTimeout || 'Timeout should upper 30s']"
+                          v-show="hasClientName" rounded hide-details="auto" label="Timeout" type="number" :min="minimummTimeout"
+                          dense class="mt-3" width="100px" outlined>
 
               <template v-slot:append>
                 <v-menu offset-y>
                   <template v-slot:activator="{ on, attrs }">
-                    <v-btn
-                      x-small
-                      text
-                      rounded
-                      v-bind="attrs"
-                      v-on="on"
-                    >
+                    <v-btn x-small text rounded v-bind="attrs" v-on="on">
                       {{ timeParts[intervalTimePart][0] }}
                     </v-btn>
                   </template>
                   <v-list dense>
-                    <v-list-item
-                      v-for="(part, index) in timeParts"
-                      :key="index"
-                      @click="intervalTimePart = index"
-                    >
+                    <v-list-item v-for="(part, index) in timeParts" :key="index" @click="intervalTimePart = index">
                       <v-list-item-title>{{ part }}</v-list-item-title>
                     </v-list-item>
                   </v-list>
@@ -72,7 +62,8 @@
 
           <v-card-text>
             <v-text-field min="4" rounded v-show="!hasClientName" v-model="editClientName" hide-details="auto"
-              label="Client name" outlined :rules="nameRules" class="mt-6">
+                          label="Client name" outlined :rules="nameRules" class="mt-6"
+                          @keypress.enter="!cantSaveName && saveName()">
               <v-icon :disabled="cantSaveName" class="mx-2" slot="append-outer" @click="saveName">
                 mdi-content-save-check-outline
               </v-icon>
@@ -80,8 +71,8 @@
 
             <v-row class="my-5 ml-0" v-show="hasClientName">
               <v-text-field class="align-start col-6" v-model="trackingNumberEdit" :rules="trackingNumberRules"
-                v-show="hasClientName" rounded hide-details="auto" label="Tracking number" dense outlined
-                @keypress.enter="!cantAddTrackingNumber && addTrackingNumber(trackingNumberEdit)">
+                            v-show="hasClientName" rounded hide-details="auto" label="Tracking number" dense outlined
+                            @keypress.enter="!cantAddTrackingNumber && addTrackingNumber(trackingNumberEdit)">
                 <v-icon :disabled="cantAddTrackingNumber" class="mr-3" slot="append-outer"
                   @click="addTrackingNumber(trackingNumberEdit)">
                   mdi-plus
@@ -134,9 +125,12 @@
                   <!-- <v-list-item-subtitle class="text-right">refresh {{computedInternvalTimeout}}</v-list-item-subtitle> -->
                 </v-list-item-content>
                 <v-list-item-action>
-                  <v-avatar size="64">
-                    <v-icon size="60">mdi-account-circle</v-icon>
-                  </v-avatar>
+                  <v-badge overlap>
+                    <v-icon v-if="currentClient" slot="badge" @click="clearSession">mdi-close</v-icon>
+                    <v-avatar size="64">
+                      <v-icon size="60">mdi-account-circle</v-icon>
+                    </v-avatar>
+                  </v-badge>
                 </v-list-item-action>
               </v-list-item>
             </div>
@@ -196,13 +190,33 @@
       </v-main>
     </v-app>
   </div>
+
+  <style>
+    @keyframes dialog-enter {
+      0% {
+        transform: translate(0, -100px) scale(0.7);
+        opacity: 0;
+      }
+
+      100% {
+        transform: translate(0, 0) scale(1);
+        opacity: 1;
+      }
+    }
+
+    .md3-dialog {
+      animation: dialog-enter 0.3s ease-out forwards;
+      /* transform-origin: center; */
+    }
+  </style>
+
   <script type="module">
     import { HubConnectionBuilder } from "./signalr.min.js"
     import { read, write } from './localstore.js'
 
     let clientName = read('currentClient') || '';
 
-    const TIMEOUT = 30,
+    const TIMEOUT = 3 * 60 * 1000,
       parts = {
         s: 1000,
         m: 60 * 1000,
@@ -293,17 +307,29 @@
         signalRConnection: new HubConnectionBuilder().withUrl("/ordertracker").build()
       },
       watch: {
-        computedInternvalTimeout(v){
-          if(v > TIMEOUT) {
+        computedInternvalTimeout(v) {
+          if (v > TIMEOUT) {
             write(`${clientNameAsId(clientName)}_interval`, [this.intervalTime, this.intervalTimePart]);
           }
-          console.log('Timeout')
         }
       },
       created() {
         this.connect().then();
       },
       methods: {
+        clearSession(){
+          Object.keys(localStorage).forEach(key => {
+            localStorage.removeItem(key);
+          });
+          this.currentClient = this.editClientName = this.trackingNumberEdit = '';
+          this.logs = {};
+          this.loadingItems = [];
+          this.openConfig = true;
+          // this.signalRConnection.stop().then(() => {
+          //   console.log("SignalR disconnected");
+          //   clearInterval(this.intervalRef);
+          // });
+        },
         saveName() {
           // const shouldPreserveLogs = this.currentClient !== this.$refs.clientNameInput.internalValue;
           write('currentClient', this.currentClient = this.editClientName);
@@ -364,9 +390,13 @@
         receiveUpdates({ trackingNumber, history, error }) {
           this.removeLoadingItem(trackingNumber);
           if (error) {
+            const { status, lastUpdated = new Date().toJSON(), history } = this.logs;
             console.error("Error receiving updates:", error);
+            this.$set(this.logs, trackingNumber, { status, lastUpdated, error, history });
           }
-          this.$set(this.logs, trackingNumber, { status: history[0]?.status, lastUpdated: history[0]?.timestamp, error, history });
+          else{
+            this.$set(this.logs, trackingNumber, { status: history[0]?.status, lastUpdated: history[0]?.timestamp, error, history });
+          }
           write(clientNameAsId(this.currentClient), this.logs);
         }
       }
