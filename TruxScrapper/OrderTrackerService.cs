@@ -154,7 +154,7 @@ public class OrderTrackerService()
 							continue;
 						}
 
-						results.Add(new(dateTime, status, location, company));
+						results.Add(new(dateTime, status, status is "Deliver", location, company));
 						AppLogger.Info(source, trackingNumber, $"Row: {date} {time} | {status}");
 						row = (await row.EvaluateHandleAsync("n => n.nextElementSibling"))?.AsElement();
 					}
@@ -264,11 +264,11 @@ public class OrderTrackerService()
 														System.Globalization.CultureInfo.InvariantCulture,
 														System.Globalization.DateTimeStyles.None);
 
-									var statusCode = await cells[1].InnerTextAsync();
+									var status = await cells[1].InnerTextAsync();
 
-									AppLogger.Info(source, trackingNumber, $"Row: {dateText} | {statusCode}");
+									AppLogger.Info(source, trackingNumber, $"Row: {dateText} | {status}");
 
-									results.Add(new(dateTime, statusCode.Trim()));
+									results.Add(new(dateTime, status.Trim(), status is "COMPLETE"));
 								}
 								row = (await row.EvaluateHandleAsync("n => n.nextElementSibling")).AsElement();
 							}

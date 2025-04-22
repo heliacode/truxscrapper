@@ -284,7 +284,7 @@
           // List of tracking numbers that aren't currently being loaded
           nonTrackedNumbers()
           {
-            return Object.keys(this.logs).filter(tn => !this.isLoading(tn));
+            return Object.keys(this.logs).filter(tn => !this.logs[tn].isCompleted && !this.isLoading(tn));
           },
           // Check if there are no logs to display
           hasntLogs()
@@ -460,7 +460,16 @@
               failCount = 0
             }
 
-            this.$set(this.logs, trackingNumber, { failCount, status: history[0]?.status, lastUpdated: history[0]?.timestamp, history });
+            const firstLog = history[0];
+
+            this.$set(this.logs, trackingNumber, { 
+              failCount,
+              history , 
+              isCompleted: firstLog?.isCompleted, 
+              status: firstLog?.status, 
+              lastUpdated: firstLog?.timestamp
+            });
+            
             write(clientNameAsId(this.currentClient), this.logs);
           }
         }
