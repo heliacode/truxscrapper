@@ -5,12 +5,13 @@ using System.Net.Mime;
 
 namespace TruxScrapper;
 
+public delegate Task PipeNotifier(string trackingNumber, List<StatusHistory> logs, string? message = null);
 public class OrderTrackerService()
 {
 	public static async Task UpdateConnectionIdAsync(
 		string clientName,
 		string[] trackingNumbers,
-		Func<string, List<StatusHistory>, Task> pipe)
+		PipeNotifier pipe)
 	{
 		if (string.IsNullOrWhiteSpace(clientName))
 		{
@@ -51,20 +52,21 @@ public class OrderTrackerService()
 					.LaunchAsync(new() { Timeout = 60000, Headless = true })
 					   .ContinueWith(async browserTask =>
 					{
-						foreach (var provider in providers)
+						foreach (var (name, scrapper) in providers)
 						{
 							var browser = browserTask.Result;
 							var context = await browser.NewContextAsync(new() { JavaScriptEnabled = true });
 
-							_ = provider.scrapper(context, clientName, number, default).ContinueWith(async t =>
+							_ = scrapper(context, clientName, number, default).ContinueWith(async t =>
 								{
 									if (t.Result is { } populator && await populator() is { } logs)
 									{
-										await pipe(number, logs);
+										await pipe(number, [.. logs.OrderByDescending(r => r.Timestamp)]);
 										logsResolver.SetResult();
 									}
 									if (--count == 0 && !logsResolver.Task.IsCompleted)
 									{
+										await pipe(number, [], "Not found in any provider.");
 										logsResolver.SetResult();
 									}
 								});
@@ -136,9 +138,23 @@ public class OrderTrackerService()
 						if (await cells[1].InnerTextAsync() is not { Length: > 0 } date) break;
 
 						var time = await cells[2].InnerTextAsync();
+
+						// Parse date and time from input format MM/dd/yyyy hh:mm
+						var dateTime = DateTime.ParseExact(
+							$"{date} {time}",
+							"MM/dd/yyyy HH:mm",
+							System.Globalization.CultureInfo.InvariantCulture,
+							System.Globalization.DateTimeStyles.None);
+
+
 						var status = await cells[7].InnerTextAsync();
-						var location = await cells[9].InnerTextAsync();
-						results.Add(new($"{date} {time}", status, location));
+
+						if((await cells[9].InnerTextAsync()).Split(':') is not [var location, var company])
+						{
+							continue;
+						}
+
+						results.Add(new(dateTime, status, location, company));
 						AppLogger.Info(source, trackingNumber, $"Row: {date} {time} | {status}");
 						row = (await row.EvaluateHandleAsync("n => n.nextElementSibling"))?.AsElement();
 					}
@@ -241,11 +257,18 @@ public class OrderTrackerService()
 								if (cells.Count >= 2)
 								{
 									var dateText = await cells[0].InnerTextAsync();
+
+									var dateTime = 	DateTime.ParseExact(
+														dateText.Trim(),
+														"yyyy-MM-dd hh:mm tt",
+														System.Globalization.CultureInfo.InvariantCulture,
+														System.Globalization.DateTimeStyles.None);
+
 									var statusCode = await cells[1].InnerTextAsync();
 
 									AppLogger.Info(source, trackingNumber, $"Row: {dateText} | {statusCode}");
 
-									results.Add(new(dateText.Trim(), statusCode.Trim(), ""));
+									results.Add(new(dateTime, statusCode.Trim()));
 								}
 								row = (await row.EvaluateHandleAsync("n => n.nextElementSibling")).AsElement();
 							}

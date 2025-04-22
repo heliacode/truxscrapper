@@ -1,303 +1,384 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Freight Tracking App</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+  <link href="vue/materialdesignicons.min.css" rel="stylesheet">
+  <link href="fonts/roboto/roboto.css" rel="stylesheet">
+  <link href="vue/vuetify.min.css" rel="stylesheet">
+  <!-- <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
+  <script src="vue/vue.min.js"></script>
+  <script src="vue/vuetify.min.js"></script>
+  <!-- <script type="module" src="app.js"></script> -->
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
-    @import url('https://fonts.googleapis.com/css2?family=Work+Sans:wght@300;400;500;700&display=swap');
-
-    body {
-      font-family: 'Roboto', sans-serif;
-      background-color: #f5f5f5;
-    }
-
-    .card-shadow {
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 3px 6px rgba(0, 0, 0, 0.08);
-    }
-
-    .card-hover:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15), 0 6px 12px rgba(0, 0, 0, 0.12);
-      transition: all 0.3s ease;
-    }
-
-    .status-pending {
-      background-color: #FFC107;
-      color: #212121;
-    }
-
-    .status-in-transit {
-      background-color: #2196F3;
-      color: white;
-    }
-
-    .status-delivered {
-      background-color: #4CAF50;
-      color: white;
-    }
-
-    .status-cancelled {
-      background-color: #F44336;
-      color: white;
-    }
-
-    .ripple {
-      position: relative;
-      overflow: hidden;
-    }
-
-    .ripple:after {
-      content: "";
-      display: block;
-      position: absolute;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-      background-image: radial-gradient(circle, #000 10%, transparent 10.01%);
-      background-repeat: no-repeat;
-      background-position: 50%;
-      transform: scale(10, 10);
-      opacity: 0;
-      transition: transform .5s, opacity 1s;
-    }
-
-    .ripple:active:after {
-      transform: scale(0, 0);
-      opacity: .2;
-      transition: 0s;
-    }
-
-    .second-font {
-      font-family: 'Work Sans', sans-serif;
-    }
-
-    .group-header {
-      background-color: #f8fafc;
-      padding: 12px 16px;
-      font-weight: 500;
-      color: #334155;
-      border-bottom: 1px solid #e2e8f0;
-      display: flex;
-      align-items: center;
-    }
-
-    .group-header .material-icons {
-      margin-right: 8px;
-      font-size: 20px;
-    }
-  </style>
-  <script type="module">
-    import './material.min.js';
-    import { styles as typescaleStyles } from './styles.js';
-
-    document.adoptedStyleSheets.push(typescaleStyles.styleSheet);
-  </script>
-  <style>
-    :root,
-    :host {
-      --md-sys-color-background: transparent;
-      --md-sys-color-on-background: #181c21;
-      --md-sys-color-surface: transparent;
-      --md-sys-color-surface-dim: #d7dae2;
-      --md-sys-color-surface-bright: transparent;
-      --md-sys-color-surface-container-lowest: #ffffff;
-      --md-sys-color-surface-container-low: #f1f3fc;
-      --md-sys-color-surface-container: #ebeef6;
-      --md-sys-color-surface-container-high: #e6e8f0;
-      --md-sys-color-surface-container-highest: #e0e2ea;
-      --md-sys-color-on-surface: #181c21;
-      --md-sys-color-surface-variant: #dce3f0;
-      --md-sys-color-on-surface-variant: #404752;
-      --md-sys-color-inverse-surface: #2d3137;
-      --md-sys-color-inverse-on-surface: #eef0f9;
-      --md-sys-color-outline: #707783;
-      --md-sys-color-outline-variant: #c0c7d4;
-      --md-sys-color-shadow: #000000;
-      --md-sys-color-scrim: #000000;
-      --md-sys-color-surface-tint: #0060a8;
-      --md-sys-color-primary: #005290;
-      --md-sys-color-on-primary: #ffffff;
-      --md-sys-color-primary-container: #0077cd;
-      --md-sys-color-on-primary-container: #ffffff;
-      --md-sys-color-inverse-primary: #a1c9ff;
-      --md-sys-color-secondary: #446084;
-      --md-sys-color-on-secondary: #ffffff;
-      --md-sys-color-secondary-container: #c4dcff;
-      --md-sys-color-on-secondary-container: #274466;
-      --md-sys-color-tertiary: #772f91;
-      --md-sys-color-on-tertiary: #ffffff;
-      --md-sys-color-tertiary-container: #a056b9;
-      --md-sys-color-on-tertiary-container: #ffffff;
-      --md-sys-color-error: #ba1a1a;
-      --md-sys-color-on-error: #ffffff;
-      --md-sys-color-error-container: #ffdad6;
-      --md-sys-color-on-error-container: #410002;
-    }
-
-    .supporting-text {
-      color: var(--md-list-item-supporting-text-color, var(--md-sys-color-on-surface-variant, #49454f));
-      font-family: var(--md-list-item-supporting-text-font, var(--md-sys-typescale-body-medium-font, var(--md-ref-typeface-plain, Roboto)));
-      font-size: var(--md-list-item-supporting-text-size, var(--md-sys-typescale-body-medium-size, 0.875rem));
-      line-height: var(--md-list-item-supporting-text-line-height, var(--md-sys-typescale-body-medium-line-height, 1.25rem));
-      font-weight: var(--md-list-item-supporting-text-weight, var(--md-sys-typescale-body-medium-weight, var(--md-ref-typeface-weight-regular, 400)));
+    .md3-dialog {
+      border-radius: 32px !important;
     }
   </style>
 </head>
 
-<body class="bg-gray-100">
-  <!-- <md-dialog aria-label=${headline ? nothing : 'A simple dialog' } ?quick=${quick} ?no-focus-trap=${noFocusTrap}>
-    <div slot="headline">Add tracking numbers</div>
-    <form id="form" slot="content" method="dialog">
-      <md-filled-text-field autofocus label="First Name"></md-filled-text-field>
-    </form>
-    <div slot="actions">
-      <md-text-button form="form" value="close">Close</md-text-button>
-      <md-text-button form="form" value="ok" autofocus>OK</md-text-button>
-    </div>
-  </md-dialog> -->
-  <div class="min-h-screen">
-    <!-- App Bar -->
-    <header class="bg-blue-600 text-white shadow-md">
-      <div class="container mx-auto px-4 py-4 flex items-center">
-        <!-- <button class="mr-4 w-12 h-12  ripple rounded-full p-2 focus:outline-none">
-            <span class="material-icons">menu</span>
-        </button> -->
-        <h1 class="text-xl font-medium second-font">Freight Tracker <a id="userName" onclick="suscribeToClientEvents()"
-            style="cursor: pointer;">(Guess)</a></h1>
-        <div class="ml-auto flex">
-          <md-icon-button dark>
-            <span class="material-icons text-white">search</span>
-          </md-icon-button>
-          <md-icon-button dark>
-            <span class="material-icons text-white">more_vert</span>
-          </md-icon-button>
-        </div>
-      </div>
-    </header>
+<body>
+  <div id="app">
+    <v-app>
 
-    <!-- Main Content -->
-    <main class="container mx-auto px-4 py-6">
-      <!-- Stats Cards -->
-      <div class="grid grid-cols-4 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <div class="bg-white rounded-lg p-4 card-shadow">
-          <div class="flex items-center">
-            <div class="p-3 w-12 h-12 rounded-full bg-blue-100 text-blue-600">
-              <span class="material-icons">local_shipping</span>
+      <v-dialog persistent v-model="openConfig" max-width="600px">
+
+        <v-card class="md3-dialog" elevation="12">
+
+          <v-card-title>
+            <v-btn :disabled="!hasClientName" icon @click="openConfig = false">
+              <v-icon>mdi-close</v-icon>
+            </v-btn>
+
+            <h3 class="col-6">Tracking numbers</h3>
+
+            <v-spacer></v-spacer>
+
+            <v-text-field class="align-start col-3" v-model="intervalTime"
+              :rules="[computedInternvalTimeout >= minimummTimeout || 'Timeout should upper 30s']" v-show="hasClientName" rounded
+              hide-details="auto" label="Timeout" type="number" :min="minimummTimeout" dense class="mt-3" width="100px"
+              outlined>
+
+              <template v-slot:append>
+                <v-menu offset-y>
+                  <template v-slot:activator="{ on, attrs }">
+                    <v-btn
+                      x-small
+                      text
+                      rounded
+                      v-bind="attrs"
+                      v-on="on"
+                    >
+                      {{ timeParts[intervalTimePart][0] }}
+                    </v-btn>
+                  </template>
+                  <v-list dense>
+                    <v-list-item
+                      v-for="(part, index) in timeParts"
+                      :key="index"
+                      @click="intervalTimePart = index"
+                    >
+                      <v-list-item-title>{{ part }}</v-list-item-title>
+                    </v-list-item>
+                  </v-list>
+                </v-menu>
+              </template>
+
+            </v-text-field>
+
+          </v-card-title>
+
+          <v-divider></v-divider>
+
+          <v-card-text>
+            <v-text-field min="4" rounded v-show="!hasClientName" v-model="editClientName" hide-details="auto"
+              label="Client name" outlined :rules="nameRules" class="mt-6">
+              <v-icon :disabled="cantSaveName" class="mx-2" slot="append-outer" @click="saveName">
+                mdi-content-save-check-outline
+              </v-icon>
+            </v-text-field>
+
+            <v-row class="my-5 ml-0" v-show="hasClientName">
+              <v-text-field class="align-start col-6" v-model="trackingNumberEdit" :rules="trackingNumberRules"
+                v-show="hasClientName" rounded hide-details="auto" label="Tracking number" dense outlined
+                @keypress.enter="!cantAddTrackingNumber && addTrackingNumber(trackingNumberEdit)">
+                <v-icon :disabled="cantAddTrackingNumber" class="mr-3" slot="append-outer"
+                  @click="addTrackingNumber(trackingNumberEdit)">
+                  mdi-plus
+                </v-icon>
+              </v-text-field>
+            </v-row>
+
+            <v-list v-show="hasClientName">
+              <v-list-item v-for="key in Object.keys(logs)" :key="key">
+                <v-list-item-content>
+                  <v-list-item-title>#{{ key }}</v-list-item-title>
+                </v-list-item-content>
+                <v-list-item-action>
+                  <v-btn icon small @click="removeTrackingNumber(key)">
+                    <v-icon>mdi-close</v-icon>
+                  </v-btn>
+                </v-list-item-action>
+              </v-list-item>
+              <v-list-item v-if="Object.keys(logs).length === 0">
+                <v-list-item-content>
+                  <v-list-item-subtitle class="text-center">No tracking numbers added yet</v-list-item-subtitle>
+                </v-list-item-content>
+              </v-list-item>
+            </v-list>
+          </v-card-text>
+
+          <v-divider v-if="hasClientName"></v-divider>
+
+          <v-card-actions v-if="hasClientName">
+            <v-spacer></v-spacer>
+            <v-btn :disabled="!nonTrackedNumbers.length" @click="openConfig = false; watchForNumbers()" outlined rounded
+              class="mr-3 pr-4 my-4" color="primary">
+              <v-icon left>mdi-eye-arrow-right</v-icon>
+              Track
+            </v-btn>
+          </v-card-actions>
+
+        </v-card>
+
+      </v-dialog>
+
+      <v-main>
+        <v-container>
+          <v-row class="my-4 mx-4">
+            <v-spacer></v-spacer>
+            <div>
+              <v-list-item>
+                <v-list-item-content>
+                  <v-list-item-title class="text-right">{{currentClient || 'Guess'}}</v-list-item-title>
+                  <!-- <v-list-item-subtitle class="text-right">refresh {{computedInternvalTimeout}}</v-list-item-subtitle> -->
+                </v-list-item-content>
+                <v-list-item-action>
+                  <v-avatar size="64">
+                    <v-icon size="60">mdi-account-circle</v-icon>
+                  </v-avatar>
+                </v-list-item-action>
+              </v-list-item>
             </div>
-            <div class="ml-4">
-              <p class="text-gray-500 hidden md:block">Total Shipments</p>
-              <h3 class="text-2xl font-medium">24</h3>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-lg p-4 card-shadow">
-          <div class="flex items-center">
-            <div class="p-3 w-12 h-12 rounded-full bg-green-100 text-green-600">
-              <span class="material-icons">check_circle</span>
-            </div>
-            <div class="ml-4">
-              <p class="text-gray-500 hidden md:block">Delivered</p>
-              <h3 class="text-2xl font-medium">18</h3>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-lg p-4 card-shadow">
-          <div class="flex items-center">
-            <div class="p-3 w-12 h-12 rounded-full bg-yellow-100 text-yellow-600">
-              <span class="material-icons">schedule</span>
-            </div>
-            <div class="ml-4">
-              <p class="text-gray-500 hidden md:block">In Transit</p>
-              <h3 class="text-2xl font-medium">4</h3>
-            </div>
-          </div>
-        </div>
-
-        <div class="bg-white rounded-lg p-4 card-shadow">
-          <div class="flex items-center">
-            <div class="p-3 w-12 h-12 rounded-full bg-red-100 text-red-600">
-              <span class="material-icons">cancel</span>
-            </div>
-            <div class="ml-4">
-              <p class="text-gray-500 hidden md:block">Cancelled</p>
-              <h3 class="text-2xl font-medium">2</h3>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Add New Freight Button -->
-      <div class="mb-6 flex justify-end">
-        <md-outlined-button id="addTrackingNumbers">
-          <span slot="icon" class="w-5 h-6 material-icons">add</span>
-          Add tracking numbers
-        </md-outlined-button>
-      </div>
-
-      <!-- Freight List -->
-      <div class="bg-white rounded-lg overflow-hidden card-shadow">
-        <div class="px-4 py-3 border-b flex items-center">
-          <h2 class="text-lg font-medium text-gray-800 second-font">Recent Shipments</h2>
-          <div class="ml-auto">
-            <button class="ripple w-12 h-12 text-blue-600 p-2 rounded-full focus:outline-none">
-              <span class="material-icons">filter_list</span>
-            </button>
-          </div>
-        </div>
-
-        <div class="divide-y" id="freightList">
-            <div class="empty-list text-gray-500 py-4 text-center">No data to show. Please, add some tracking numbers</div>          
-        </div>
-
-        <div class="px-4 py-3 border-t flex justify-center">
-          <md-text-button>
-            <span slot="icon" class="w-5 h-6 material-icons">expand_more</span>
-            Show more...
-          </md-text-button>
-          <!-- <button class="ripple text-blue-600 px-4 py-2 rounded-full flex items-center focus:outline-none">
-              <span class="material-icons mr-2">expand_more</span>
-              Load More
-          </button> -->
-        </div>
-      </div>
-    </main>
-
-    <!-- Bottom Navigation -->
-    <nav class="fixed bottom-0 w-full bg-white shadow-lg border-t">
-      <div class="container mx-auto px-4">
-        <div class="flex justify-around">
-          <a href="#" class="py-3 px-6 text-blue-600 flex flex-col items-center">
-            <span class="material-icons">home</span>
-            <span class="text-xs mt-1">Home</span>
-          </a>
-          <a href="#" class="py-3 px-6 text-gray-500 flex flex-col items-center">
-            <span class="material-icons">receipt</span>
-            <span class="text-xs mt-1">Orders</span>
-          </a>
-          <a href="#" class="py-3 px-6 text-gray-500 flex flex-col items-center">
-            <span class="material-icons">map</span>
-            <span class="text-xs mt-1">Tracking</span>
-          </a>
-          <a href="#" class="py-3 px-6 text-gray-500 flex flex-col items-center">
-            <span class="material-icons">person</span>
-            <span class="text-xs mt-1">Account</span>
-          </a>
-        </div>
-      </div>
-    </nav>
+          </v-row>
+          <v-row class="my-4 mx-4" v-show="!hasntLogs">
+            <v-spacer></v-spacer>
+            <v-btn outlined rounded color="primary" right @click="openConfig = true">
+              <v-icon left>mdi-plus</v-icon>
+              Add tracking numbers
+            </v-btn>
+          </v-row>
+          <v-row v-if="hasntLogs" class="my-8">
+            <v-col class="text-center">
+              <v-icon size="84" color="grey lighten-1" class="mb-4">mdi-package-variant-closed</v-icon>
+              <h2 class="grey--text text--darken-1">No tracking numbers yet</h2>
+              <p class="grey--text text-caption">Add tracking numbers to start monitoring your shipments</p>
+              <v-btn color="primary" class="mt-3" rounded outlined @click="openConfig = true">
+                <v-icon left>mdi-plus</v-icon>
+                Add your first tracking numbers
+              </v-btn>
+            </v-col>
+          </v-row>
+          <v-expansion-panels multiple class="md3-dialog" popout>
+            <v-expansion-panel :disabled="!!logs.error" v-for="[num, logs] in Object.entries(logs)">
+              <v-expansion-panel-header ripple>
+                <v-row justify="space-between" align="center">
+                  <v-col cols="auto">
+                    <v-avatar>
+                      <v-icon>mdi-truck-delivery</v-icon>
+                      <v-progress-circular v-show="isLoading(num)" style="position: absolute;" indeterminate
+                        size="44" />
+                    </v-avatar>
+                  </v-col>
+                  <v-col>
+                    <h3 class="mb-2">#{{num}}</h3>
+                    <v-chip x-small v-if="logs.error" color="red">{{logs.error}}</v-chip>
+                    <span v-else-if="logs.lastUpdated" class="text--secondary">{{logs.lastUpdated | toRelative}}</span>
+                    <span v-else class="text--secondary">(Not updated)</span>
+                  </v-col>
+                </v-row>
+              </v-expansion-panel-header>
+              <v-expansion-panel-content>
+                <v-list-item v-for="log in logs.history" :key="log.timestamp">
+                  <v-list-item-content>
+                    <v-list-item-title>{{ log.company || 'Unknown location' }}</v-list-item-title>
+                    <v-list-item-subtitle>{{ log.location || 'Unknown company ' }}</v-list-item-subtitle>
+                  </v-list-item-content>
+                  <v-list-item-action>
+                    <v-chip color="success">{{log.status}}</v-chip>
+                    <span class="pt-2 v-list-item__subtitle">{{log.timestamp | toRelative}}</span>
+                  </v-list-item-action>
+                </v-list-item>
+              </v-expansion-panel-content>
+            </v-expansion-panel>
+          </v-expansion-panels>
+        </v-container>
+      </v-main>
+    </v-app>
   </div>
+  <script type="module">
+    import { HubConnectionBuilder } from "./signalr.min.js"
+    import { read, write } from './localstore.js'
 
-  <script type="module">    
-    import {addCurrentClientTrackingNumbers} from './app.js';	
+    let clientName = read('currentClient') || '';
+
+    const TIMEOUT = 30,
+      parts = {
+        s: 1000,
+        m: 60 * 1000,
+        h: 60 * 60 * 1000
+      },
+      [intervalTime, intervalTimePart] = (read(`${clientNameAsId(clientName)}_interval`) ?? [TIMEOUT, 0]),
+      rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
+
+    new Vue({
+      el: '#app',
+      vuetify: new Vuetify({
+        theme: {
+          dark: window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true,
+          options: {
+            themeCache: {
+              get: key => localStorage.getItem(key),
+              set: (key, value) => (console.log(key), localStorage.setItem(key, value)),
+            },
+          }
+        }
+      }),
+      filters: {
+        toRelative(v) {
+          const now = Date.now(),
+            diffMs = new Date(v) - now,
+            diffSeconds = Math.round(diffMs / 1000),
+            diffMinutes = Math.round(diffSeconds / 60),
+            diffHours = Math.round(diffMinutes / 60),
+            diffDays = Math.round(diffHours / 24),
+            diffWeeks = Math.round(diffDays / 7),
+            diffMonths = Math.round(diffDays / 30.42), // Average days per month
+            diffYears = Math.round(diffDays / 365.25); // Average days per year (accounting for leap years)
+
+          if (Math.abs(diffYears) >= 1) return rtf.format(diffYears, 'year');
+          if (Math.abs(diffMonths) >= 1) return rtf.format(diffMonths, 'month');
+          if (Math.abs(diffWeeks) >= 1) return rtf.format(diffWeeks, 'week');
+          if (Math.abs(diffDays) >= 1) return rtf.format(diffDays, 'day');
+          if (Math.abs(diffHours) >= 1) return rtf.format(diffHours, 'hour');
+          if (Math.abs(diffMinutes) >= 1) return rtf.format(diffMinutes, 'minute');
+          if (Math.abs(diffSeconds) >= 1) return rtf.format(diffSeconds, 'second');
+          return rtf.format(0, 'second'); // Fallback for no difference
+        }
+      },
+      computed: {
+        computedInternvalTimeout() {
+          return this.intervalTime * parts[this.timeParts[this.intervalTimePart][0]] || TIMEOUT;
+        },
+        nonTrackedNumbers() {
+          return Object.keys(this.logs).filter(tn => !this.isLoading(tn));
+        },
+        hasntLogs() {
+          return Object.keys(this.logs).length === 0
+        },
+        hasClientName() {
+          return !!this.currentClient?.trim()
+        },
+        cantSaveName() {
+          return this.nameRules.some(r => typeof r === "string");
+        },
+        nameRules() {
+          return this.rules.map(r => r(this.editClientName.trim()));
+        },
+        cantAddTrackingNumber() {
+          return this.trackingNumberRules.some(r => typeof r === "string");
+        },
+        trackingNumberRules() {
+          return this.rules
+            .concat(v => !(v?.trim() in this.logs) || "Number already exists")
+            .map(r => r(this.trackingNumberEdit.trim()));
+        }
+      },
+      data: {
+        trackingNumberEdit: '',
+        minimummTimeout: TIMEOUT,
+        editClientName: '',
+        loadingItems: [],
+        intervalRef: null,
+        intervalTime,
+        intervalTimePart,
+        timeParts: ['second(s)', 'minute(s)', 'hour(s)'],
+        currentClient: clientName,
+        openConfig: false,
+        rules: [
+          v => !!v || 'Value is required',
+          v => (v.length > 4) || 'Value must be less than 4 characters',
+        ],
+        logs: read(clientNameAsId(clientName)) ?? {},
+        signalRConnection: new HubConnectionBuilder().withUrl("/ordertracker").build()
+      },
+      watch: {
+        computedInternvalTimeout(v){
+          if(v > TIMEOUT) {
+            write(`${clientNameAsId(clientName)}_interval`, [this.intervalTime, this.intervalTimePart]);
+          }
+          console.log('Timeout')
+        }
+      },
+      created() {
+        this.connect().then();
+      },
+      methods: {
+        saveName() {
+          // const shouldPreserveLogs = this.currentClient !== this.$refs.clientNameInput.internalValue;
+          write('currentClient', this.currentClient = this.editClientName);
+          write(clientNameAsId(this.currentClient), this.logs = {});
+        },
+        addTrackingNumber(trackingNumber) {
+          this.$set(this.logs, trackingNumber, { lastUpdated: null, error: null, history: [] });
+          write(clientNameAsId(this.currentClient), this.logs);
+          this.trackingNumberEdit = '';
+        },
+        removeTrackingNumber(key) {
+          this.removeLoadingItem(key);
+          this.$delete(this.logs, key);
+          this.$nextTick(() => write(clientNameAsId(this.currentClient), this.logs));
+        },
+        isLoading(key) {
+          return this.loadingItems.includes(key);
+        },
+        addLoadingItems(...tracingNumbers) {
+          this.loadingItems.push(...tracingNumbers);
+        },
+        removeLoadingItem(...tracingNumbers) {
+          this.loadingItems = this.loadingItems.filter(tn => !tracingNumbers.includes(tn));
+        },
+        async connect() {
+          try {
+            await this.signalRConnection.start();
+            console.log("SignalR connected");
+            this.watchForNumbers();
+          } catch (err) {
+            console.error("Error connecting to SignalR:", err);
+          }
+        },
+        watchForNumbers() {
+          // Exit if SignalR is not connected
+          if (this.signalRConnection.state !== "Connected") {
+            console.log("SignalR not connected, attempting to connect...");
+            return; // Don't proceed if not connected
+          }
+          if (this.intervalRef !== null) {
+            clearInterval(this.interval);
+          }
+
+          const numbersToTrack = this.nonTrackedNumbers;
+
+          if (!numbersToTrack.length) {
+            return;
+          }
+
+          this.addLoadingItems(...numbersToTrack);
+
+          this.signalRConnection.off("Update", this.receiveUpdates);
+          this.signalRConnection.on("Update", this.receiveUpdates);
+          this.signalRConnection.invoke('UpdateConnectionIdAsync', this.currentClient, numbersToTrack).then();
+
+          this.intervalRef = setInterval(this.watchForNumbers, this.computedInternvalTimeout);
+        },
+        receiveUpdates({ trackingNumber, history, error }) {
+          this.removeLoadingItem(trackingNumber);
+          if (error) {
+            console.error("Error receiving updates:", error);
+          }
+          this.$set(this.logs, trackingNumber, { status: history[0]?.status, lastUpdated: history[0]?.timestamp, error, history });
+          write(clientNameAsId(this.currentClient), this.logs);
+        }
+      }
+    });
+
+
+
+    function clientNameAsId(client) {
+      return client.replaceAll(/[^\w]+/g, '_') + "_logs";
+    }
+
+
   </script>
 </body>
 

@@ -2,4 +2,4 @@
 namespace TruxScrapper;
 
 
-public record StatusHistory(string Timestamp, string StatusCode, string Location);
+public record StatusHistory(DateTime Timestamp, string Status, string Location = "", string Company = "");
