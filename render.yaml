@@ -19,6 +19,8 @@ services:
     envVars:
       - key: ASPNETCORE_ENVIRONMENT
         value: Production
+      - key: DISCORD_WEBHOOK_URL
+        sync: false # Marks this as a secret value that won't be displayed in logs
 
     # Add Discord notification configuration
     notifications:
@@ -28,8 +30,3 @@ services:
           - deploy.started
           - deploy.succeeded
           - deploy.failed
-    
-    # Add the webhook URL as a secret environment variable
-    envVars:
-      - key: DISCORD_WEBHOOK_URL
-        sync: false # Marks this as a secret value that won't be displayed in logs
