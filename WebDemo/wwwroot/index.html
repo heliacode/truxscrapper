@@ -240,13 +240,7 @@
         vuetify: new Vuetify({
           theme: {
             // Auto-detect dark mode from system preferences
-            dark: window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true,
-            options: {
-              themeCache: {
-                get: key => localStorage.getItem(key),
-                set: (key, value) => (console.log(key), localStorage.setItem(key, value)),
-              },
-            }
+            dark: window.matchMedia?.('(prefers-color-scheme: dark)')?.matches ?? true
           }
         }),
         // Custom filters for data formatting

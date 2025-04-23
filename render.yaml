@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: truxscrapper
+    env: docker
+    dockerfilePath: ./DockerFile
+    dockerContext: .
+    plan: standard
+    
+    # Automatically deploy on changes to the main branch
+    branch: main
+    
+    # Health check path - you might need to adjust this to match your actual health endpoint
+    healthCheckPath: /health
+    
+    # Container port that should be exposed - matches your EXPOSE in Dockerfile
+    port: 80
+    
+    # Environment variables needed by your application
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+
+    # Add Discord notification configuration
+    notifications:
+      - type: webhook
+        url: ${DISCORD_WEBHOOK_URL}
+        events:
+          - deploy.started
+          - deploy.succeeded
+          - deploy.failed
+    
+    # Add the webhook URL as a secret environment variable
+    envVars:
+      - key: DISCORD_WEBHOOK_URL
+        sync: false # Marks this as a secret value that won't be displayed in logs
