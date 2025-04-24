@@ -46,7 +46,7 @@
               <template v-slot:append>
                 <v-menu offset-y>
                   <template v-slot:activator="{ on, attrs }">
-                    <v-btn x-small text rounded v-bind="attrs" v-on="on">
+                    <v-btn primary style="margin: -2px -16px 0 0" small text rounded v-bind="attrs" v-on="on">
                       {{ timeParts[intervalTimePart][0] }}
                     </v-btn>
                   </template>
@@ -74,8 +74,9 @@
             </v-text-field>
 
             <v-row class="my-5 ml-0" v-show="hasClientName">
-              <v-text-field class="align-start col-6" v-model="trackingNumberEdit" :rules="trackingNumberRules"
-                            v-show="hasClientName" rounded hide-details="auto" label="Tracking number" dense outlined
+              <v-text-field class="align-start col-6" v-model="trackingNumberEdit" v-show="hasClientName" rounded hide-details="auto" 
+                            :rules="rules.concat(v => !(v?.trim() in this.logs) || 'Number already exists')" label="Tracking number" 
+                            dense outlined ref="trackingNumberInput"
                             @keypress.enter="!cantAddTrackingNumber && addTrackingNumber(trackingNumberEdit)">
                 <v-icon :disabled="cantAddTrackingNumber" class="mr-3" slot="append-outer"
                   @click="addTrackingNumber(trackingNumberEdit)">
@@ -129,8 +130,8 @@
                   <!-- <v-list-item-subtitle class="text-right">refresh {{computedInternvalTimeout}}</v-list-item-subtitle> -->
                 </v-list-item-content>
                 <v-list-item-action>
-                  <v-badge overlap>
-                    <v-icon v-if="currentClient" slot="badge" @click="clearSession">mdi-close</v-icon>
+                  <v-badge :value="!!currentClient" color="red" overlap>
+                    <v-icon slot="badge" @click="clearSession">mdi-close</v-icon>
                     <v-avatar size="64">
                       <v-icon size="60">mdi-account-circle</v-icon>
                     </v-avatar>
@@ -231,7 +232,7 @@
           h: 60 * 60 * 1000
         },
         // Retrieve interval settings from local storage or use defaults
-        [intervalTime, intervalTimePart] = (read(`${clientNameAsId(clientName)}_interval`) ?? [TIMEOUT, 0]),
+        [intervalTime, intervalTimePart] = (read(`${clientNameAsId(clientName)}_interval`) ?? [3, 1]),
         // Formatter for relative time display
         rtf = new Intl.RelativeTimeFormat('en', { numeric: 'auto' });
 
@@ -371,6 +372,7 @@
             this.$set(this.logs, trackingNumber, { lastUpdated: null, history: [] });
             write(clientNameAsId(this.currentClient), this.logs);
             this.trackingNumberEdit = '';
+            $refs.trackingNumberInput.resetValidation();
           },
           // Remove a tracking number and save changes
           removeTrackingNumber(key)
@@ -439,6 +441,8 @@
           // Handle tracking updates from the server
           receiveUpdates({ trackingNumber, history })
           {
+            if(!(trackingNumber in this.logs)) return;
+            
             this.removeLoadingItem(trackingNumber);
 
             let failCount = this.logs[trackingNumber]?.failCount ?? 0;
