@@ -5,12 +5,10 @@
   <link href="vue/materialdesignicons.min.css" rel="stylesheet">
   <link href="fonts/roboto/roboto.css" rel="stylesheet">
   <link href="vue/vuetify.min.css" rel="stylesheet">
-  <!-- <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> -->
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, minimal-ui">
   <!-- Vue.js and Vuetify libraries -->
   <script src="vue/vue.min.js"></script>
   <script src="vue/vuetify.min.js"></script>
-  <!-- <script type="module" src="app.js"></script> -->
   <style>
     .md3-dialog {
       border-radius: 32px !important;
@@ -26,7 +24,7 @@
       <!-- Configuration dialog for managing tracking numbers -->
       <v-dialog persistent v-model="openConfig" max-width="600px">
 
-        <v-card class="md3-dialog" elevation="12">
+        <v-card class="md3-dialog animated-enter" elevation="12">
 
           <v-card-title>
             <v-btn :disabled="!hasClientName" icon @click="openConfig = false">
@@ -159,8 +157,8 @@
             </v-col>
           </v-row>
           <v-expansion-panels multiple class="md3-dialog" popout>
-            <v-expansion-panel v-for="[num, update] in Object.entries(logs)">
-              <v-expansion-panel-header ripple>
+            <v-expansion-panel :readonly="!update.history.length" v-for="[num, update] in Object.entries(logs)">
+              <v-expansion-panel-header :ripple="update.history.length">
                 <v-row justify="space-between" align="center">
                   <v-col cols="auto">
                     <v-avatar>
@@ -176,6 +174,14 @@
                     </v-chip>
                     <span v-if="update.lastUpdated" class="text--secondary">{{update.lastUpdated | toRelative}}</span>
                     <span v-else class="text--secondary">(Not updated)</span>
+                  </v-col>
+                  <v-col align="end" cols="1">                    
+                    <v-chip class="mr-2" small v-if="update.isCompleted" color="success">
+                      COMPLETED
+                    </v-chip>
+                    <v-btn class="mr-2" v-else-if="!isLoading(num)" icon small @click.stop.prevent="watchForNumbers([num])">
+                      <v-icon>mdi-refresh</v-icon>
+                    </v-btn>
                   </v-col>
                 </v-row>
               </v-expansion-panel-header>
@@ -211,7 +217,7 @@
       }
     }
 
-    .md3-dialog {
+    .animated-enter {
       animation: dialog-enter 0.3s ease-out forwards;
       /* transform-origin: center; */
     }
@@ -411,7 +417,7 @@
             }
           },
           // Main tracking method - requests updates for tracking numbers
-          watchForNumbers()
+          watchForNumbers(numbersToTrack = this.nonTrackedNumbers)
           {
             // Exit if SignalR is not connected
             if (this.signalRConnection.state !== "Connected")
@@ -423,8 +429,6 @@
             {
               clearInterval(this.interval);
             }
-
-            const numbersToTrack = this.nonTrackedNumbers;
 
             if (!numbersToTrack.length)
             {
@@ -442,7 +446,7 @@
           receiveUpdates({ trackingNumber, history })
           {
             if(!(trackingNumber in this.logs)) return;
-            
+
             this.removeLoadingItem(trackingNumber);
 
             let failCount = this.logs[trackingNumber]?.failCount ?? 0;
