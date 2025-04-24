@@ -63,13 +63,23 @@
           <v-divider></v-divider>
 
           <v-card-text>
-            <v-text-field min="4" rounded v-show="!hasClientName" v-model="editClientName" hide-details="auto"
-                          label="Client name" outlined :rules="nameRules" class="mt-6"
-                          @keypress.enter="!cantSaveName && saveName()">
-              <v-icon :disabled="cantSaveName" class="mx-2" slot="append-outer" @click="saveName">
-                mdi-content-save-check-outline
-              </v-icon>
-            </v-text-field>
+            <div v-show="!hasClientName">
+              <div class="subtitle-1 mt-3">
+                <v-icon>mdi-information-outline</v-icon>
+                Before continue, we need associate results to a client name
+              </div>
+              <v-text-field min="4" rounded v-model="editClientName" hide-details="auto" class="mt-3" ref="clientNameInput"
+                            @keypress.enter="!!$refs.clientNameInput?.valid && saveName()" label="Client name" outlined 
+                            placeholder="Please provide a client name" hint="2 characters minimum"
+                            :rules="[
+                              v => !!v || 'Value is required',
+                              v => (v.length >= 2) || 'Value must be greater than 2 characters',
+                            ]">
+                <v-icon v-if="!!$refs.clientNameInput?.valid" class="mx-2" slot="append-outer" @click="saveName">
+                  mdi-content-save-check-outline
+                </v-icon>
+              </v-text-field>
+            </div>
 
             <v-row class="my-5 ml-0" v-show="hasClientName">
               <v-text-field class="align-start col-6" v-model="trackingNumberEdit" v-show="hasClientName" rounded hide-details="auto" 
@@ -300,7 +310,7 @@
           // Validation logic for client name
           cantSaveName()
           {
-            return this.nameRules.some(r => typeof r === "string");
+            return this.rules.some(r => typeof r === "string");
           },
           nameRules()
           {
@@ -378,7 +388,7 @@
             this.$set(this.logs, trackingNumber, { lastUpdated: null, history: [] });
             write(clientNameAsId(this.currentClient), this.logs);
             this.trackingNumberEdit = '';
-            $refs.trackingNumberInput.resetValidation();
+            this.$refs.trackingNumberInput.resetValidation();
           },
           // Remove a tracking number and save changes
           removeTrackingNumber(key)
