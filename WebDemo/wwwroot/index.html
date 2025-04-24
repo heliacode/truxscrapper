@@ -185,9 +185,10 @@
                     <span v-if="update.lastUpdated" class="text--secondary">{{update.lastUpdated | toRelative}}</span>
                     <span v-else class="text--secondary">(Not updated)</span>
                   </v-col>
-                  <v-col align="end" cols="1">                    
+                  <v-col align="end" cols="4">                    
                     <v-chip class="mr-2" small v-if="update.isCompleted" color="success">
-                      COMPLETED
+                      <v-icon small left>mdi-check</v-icon>
+                      Delivered
                     </v-chip>
                     <v-btn class="mr-2" v-else-if="!isLoading(num)" icon small @click.stop.prevent="watchForNumbers([num])">
                       <v-icon>mdi-refresh</v-icon>
