@@ -18,6 +18,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\TruxScrapper\TruxScrapper.csproj" />
+    <None Update="Dockerfile">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>
